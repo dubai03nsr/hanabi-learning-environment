@@ -45,6 +45,7 @@ class ObservationStacker(object):
   """Class for stacking agent observations."""
 
   def __init__(self, history_size, observation_size, num_players):
+    print("history_size:", history_size)
     """Initializer for observation stacker.
 
     Args:
@@ -169,7 +170,8 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
     return rainbow_agent.RainbowAgent(
         observation_size=obs_stacker.observation_size(),
         num_actions=environment.num_moves(),
-        num_players=environment.players)
+        num_players=environment.players,
+        tf_device='/gpu:0')
   else:
     raise ValueError('Expected valid agent_type, got {}'.format(agent_type))
 
