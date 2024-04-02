@@ -501,6 +501,7 @@ def run_experiment(agent,
                                    training_steps)
     tf.logging.info('Iteration %d took %d seconds', iteration,
                     time.time() - start_time)
+    """
     start_time = time.time()
     log_experiment(experiment_logger, iteration, statistics,
                    logging_file_prefix, log_every_n)
@@ -511,3 +512,4 @@ def run_experiment(agent,
                           iteration, checkpoint_dir, checkpoint_every_n)
     tf.logging.info('Checkpointing iteration %d took %d seconds', iteration,
                     time.time() - start_time)
+    """

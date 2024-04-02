@@ -56,8 +56,10 @@ flags.DEFINE_string('logging_dir', '',
 flags.DEFINE_string('logging_file_prefix', 'log',
                     'Prefix to use for the log files.')
 
-flags.DEFINE_string('history_size', 4,
-                    'Number of time steps to stack in the observation.')
+flags.DEFINE_integer('history_size', 4,
+                    'Number of time steps to stack in the observation.', lower_bound=1)
+flags.DEFINE_integer('num_iterations', 200,
+                    'Number of training iterations', lower_bound=1)
 
 def launch_experiment():
   """Launches the experiment.
@@ -82,7 +84,7 @@ def launch_experiment():
   experiment_logger = logger.Logger('{}/logs'.format(FLAGS.base_dir))
 
   environment = run_experiment.create_environment()
-  obs_stacker = run_experiment.create_obs_stacker(environment)
+  obs_stacker = run_experiment.create_obs_stacker(environment, history_size=FLAGS.history_size)
   agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow')
 
   checkpoint_dir = '{}/checkpoints'.format(FLAGS.base_dir)
@@ -97,7 +99,7 @@ def launch_experiment():
                                 experiment_logger, experiment_checkpointer,
                                 checkpoint_dir,
                                 logging_file_prefix=FLAGS.logging_file_prefix,
-                                num_iterations=50)
+                                num_iterations=FLAGS.num_iterations)
 
 
 def main(unused_argv):
