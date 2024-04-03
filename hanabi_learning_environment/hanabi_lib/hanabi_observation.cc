@@ -92,6 +92,13 @@ HanabiObservation::HanabiObservation(const HanabiState& state,
   }
 }
 
+std::string HanabiObservation::GetHandStrings() const {
+  std::string result;
+  for (int i = 0; i < hands_.size(); ++i) {
+    result += hands_[i].GetHandString() + "\n";
+  }
+}
+
 std::string HanabiObservation::ToString() const {
   std::string result;
   result += "Life tokens: " + std::to_string(LifeTokens()) + "\n";

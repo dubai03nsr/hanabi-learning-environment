@@ -114,6 +114,7 @@ class HanabiHand {
   // and was previously unknown.
   uint8_t RevealColor(int color);
   std::string ToString() const;
+  std::string GetHandString() const;
 
  private:
   // A set of cards and knowledge about them.

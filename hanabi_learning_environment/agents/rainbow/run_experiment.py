@@ -266,6 +266,9 @@ def parse_observations(observations, num_actions, obs_stacker):
       corresponding to legal moves.
     observation_vector: Vectorized observation for the current player.
   """
+  for player_observation in observations['player_observations']:
+      print(player_observation['pyhanabi'].test_method())
+  raise Exception()
   current_player = observations['current_player']
   current_player_observation = (
       observations['player_observations'][current_player])

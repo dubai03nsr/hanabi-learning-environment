@@ -32,6 +32,8 @@ class HanabiObservation {
  public:
   HanabiObservation(const HanabiState& state, int observing_player);
 
+  std::string GetHandStrings() const;
+
   std::string ToString() const;
 
   // offset of current player from observing player.

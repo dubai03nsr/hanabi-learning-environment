@@ -135,4 +135,12 @@ std::string HanabiHand::ToString() const {
   return result;
 }
 
+std::string HanabiHand::GetHandString() const {
+  std::string result;
+  for (int i = 0; i < cards_.size(); ++i) {
+    result += cards_[i].ToString();
+  }
+  return result;
+}
+
 }  // namespace hanabi_learning_env

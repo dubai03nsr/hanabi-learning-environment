@@ -821,6 +821,12 @@ class HanabiObservation(object):
     """Returns the C++ HanabiObservation object."""
     return self._observation
 
+  def test_method(self):
+    c_string = lib.ObsToHandString(self._observation)
+    string = encode_ffi_string(c_string)
+    lib.DeleteString(c_string)
+    return string
+
   def cur_player_offset(self):
     """Returns the player index of the acting player, relative to observer."""
     return lib.ObsCurPlayerOffset(self._observation)
