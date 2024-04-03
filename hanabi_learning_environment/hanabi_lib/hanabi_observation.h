@@ -33,7 +33,7 @@ class HanabiObservation {
   HanabiObservation(const HanabiState& state, int observing_player);
 
   std::string GetHandStrings() const;
-  std::string GetLeftHandString() const;
+  std::string GetRightHandString() const;
 
   std::string ToString() const;
 

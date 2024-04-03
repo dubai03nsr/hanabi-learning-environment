@@ -100,8 +100,8 @@ std::string HanabiObservation::GetHandStrings() const {
   return result;
 }
 
-std::string HanabiObservation::GetLeftHandString() const {
-  return hands_[hands_.size() - 1].GetHandString();
+std::string HanabiObservation::GetRightHandString() const {
+  return hands_[1].GetHandString();
 }
 
 std::string HanabiObservation::ToString() const {

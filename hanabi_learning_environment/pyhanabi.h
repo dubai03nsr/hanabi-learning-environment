@@ -159,7 +159,7 @@ void NewObservation(pyhanabi_state_t* state, int player,
 void DeleteObservation(pyhanabi_observation_t* observation);
 char* ObsToString(pyhanabi_observation_t* observation);
 char* ObsToHandString(pyhanabi_observation_t* observation);
-char* ObsToLeftHandString(pyhanabi_observation_t* observation);
+char* ObsToRightHandString(pyhanabi_observation_t* observation);
 int ObsCurPlayerOffset(pyhanabi_observation_t* observation);
 int ObsNumPlayers(pyhanabi_observation_t* observation);
 int ObsGetHandSize(pyhanabi_observation_t* observation, int pid);

@@ -270,7 +270,7 @@ def parse_observations(observations, num_actions, obs_stacker):
       print(player_observation['pyhanabi'].hand_string())
   self_hands = []
   for i in range(len(observations['player_observations'])):
-    self_hands.append(observations['player_observations'][i+1]['pyhanabi'].left_hand_string())
+    self_hands.append(observations['player_observations'][i-1]['pyhanabi'].right_hand_string())
   print(self_hands)
   raise Exception()
   current_player = observations['current_player']

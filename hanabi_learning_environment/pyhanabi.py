@@ -827,8 +827,8 @@ class HanabiObservation(object):
     lib.DeleteString(c_string)
     return string
 
-  def left_hand_string(self):
-    c_string = lib.ObsToLeftHandString(self._observation)
+  def right_hand_string(self):
+    c_string = lib.ObsToRightHandString(self._observation)
     string = encode_ffi_string(c_string)
     lib.DeleteString(c_string)
     return string

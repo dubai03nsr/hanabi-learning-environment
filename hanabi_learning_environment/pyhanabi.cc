@@ -641,12 +641,12 @@ char* ObsToHandString(pyhanabi_observation_t* observation) {
   return strdup(str.c_str());
 }
 
-char* ObsToLeftHandString(pyhanabi_observation_t* observation) {
+char* ObsToRightHandString(pyhanabi_observation_t* observation) {
   REQUIRE(observation != nullptr);
   REQUIRE(observation->observation != nullptr);
   std::string str = reinterpret_cast<hanabi_learning_env::HanabiObservation*>(
                         observation->observation)
-                        ->GetLeftHandString();
+                        ->GetRightHandString();
   return strdup(str.c_str());
 }
 
