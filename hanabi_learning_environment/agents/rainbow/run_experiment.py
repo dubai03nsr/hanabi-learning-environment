@@ -267,7 +267,11 @@ def parse_observations(observations, num_actions, obs_stacker):
     observation_vector: Vectorized observation for the current player.
   """
   for player_observation in observations['player_observations']:
-      print(player_observation['pyhanabi'].test_method())
+      print(player_observation['pyhanabi'].hand_string())
+  self_hands = []
+  for i in range(len(observations['player_observations'])):
+    self_hands.append(observations['player_observations'][i+1]['pyhanabi'].left_hand_string())
+  print(self_hands)
   raise Exception()
   current_player = observations['current_player']
   current_player_observation = (

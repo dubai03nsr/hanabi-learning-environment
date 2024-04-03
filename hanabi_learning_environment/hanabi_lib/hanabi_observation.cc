@@ -97,6 +97,11 @@ std::string HanabiObservation::GetHandStrings() const {
   for (int i = 0; i < hands_.size(); ++i) {
     result += hands_[i].GetHandString() + "\n";
   }
+  return result;
+}
+
+std::string HanabiObservation::GetLeftHandString() const {
+  return hands_[hands_.size() - 1].GetHandString();
 }
 
 std::string HanabiObservation::ToString() const {
