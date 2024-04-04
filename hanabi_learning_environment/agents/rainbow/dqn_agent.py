@@ -38,7 +38,7 @@ import tensorflow as tf
 slim = tf.contrib.slim
 
 Transition = collections.namedtuple(
-    'Transition', ['reward', 'observation', 'legal_actions', 'action', 'begin'])
+    'Transition', ['reward', 'observation', 'legal_actions', 'action', 'self_hand', 'begin'])
 
 
 def linearly_decaying_epsilon(decay_period, step, warmup_steps, epsilon):
@@ -79,11 +79,32 @@ def dqn_template(state, num_actions, layer_size=512, num_layers=1):
   net = tf.squeeze(net, axis=2)
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size,
-                               activation_fn=tf.nn.relu)
+                               activation_fn=tf.nn.relu, name=f'layer_{_}')
   net = slim.fully_connected(net, num_actions, activation_fn=None,
-                             weights_initializer=weights_initializer)
+                             weights_initializer=weights_initializer, name='q_head')
   return net
 
+def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_layers=1):
+  r"""dqn_template but with a second head for predicting self hand
+  """
+  weights_initializer = slim.variance_scaling_initializer(
+      factor=1.0 / np.sqrt(3.0), mode='FAN_IN', uniform=True)
+
+  net = tf.cast(state, tf.float32)
+  net = tf.squeeze(net, axis=2)
+  for _ in range(num_layers):
+    net = slim.fully_connected(net, layer_size,
+                               activation_fn=tf.nn.relu, name=f'layer_{_}')
+  dqn_head = slim.fully_connected(net, num_actions, activation_fn=None,
+                             weights_initializer=weights_initializer, name='q_head')
+  
+  tom_size = np.prod(self_hand_shape)
+  tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
+                             weights_initializer=weights_initializer, name='tom_head')
+  tom_head = tf.reshape(tom_head, [-1] + self_hand_shape)
+  # softmax tom_head along last dimension
+  tom_head = tf.nn.softmax(tom_head, axis=-1)
+  return dqn_head, tom_head
 
 @gin.configurable
 class DQNAgent(object):
@@ -94,6 +115,8 @@ class DQNAgent(object):
                num_actions=None,
                observation_size=None,
                num_players=None,
+               self_hand_shape=None,
+               tom_lambda=0.1,
                gamma=0.99,
                update_horizon=1,
                min_replay_history=500,
@@ -157,6 +180,8 @@ class DQNAgent(object):
     self.num_actions = num_actions
     self.observation_size = observation_size
     self.num_players = num_players
+    self.self_hand_shape = self_hand_shape
+    self.tom_lambda = tom_lambda
     self.gamma = gamma
     self.update_horizon = update_horizon
     self.cumulative_gamma = math.pow(gamma, update_horizon)
@@ -176,7 +201,7 @@ class DQNAgent(object):
       # Calling online_convnet will generate a new graph as defined in
       # graph_template using whatever input is passed, but will always share
       # the same weights.
-      online_convnet = tf.make_template('Online', graph_template)
+      online_convnet = tf.make_template('Online', dqn_tom_template)
       target_convnet = tf.make_template('Target', graph_template)
       # The state of the agent. The last axis is the number of past observations
       # that make up the state.
@@ -186,10 +211,11 @@ class DQNAgent(object):
       self.legal_actions_ph = tf.placeholder(tf.float32,
                                              [self.num_actions],
                                              name='legal_actions_ph')
-      self._q = online_convnet(
-          state=self.state_ph, num_actions=self.num_actions)
+      self._q, _ = online_convnet(
+          state=self.state_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape)
       self._replay = self._build_replay_memory(use_staging)
-      self._replay_qs = online_convnet(self._replay.states, self.num_actions)
+      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self.num_actions,
+                                                         self.self_hand_shape)
       self._replay_next_qt = target_convnet(self._replay.next_states,
                                             self.num_actions)
       self._train_op = self._build_train_op()
@@ -221,6 +247,7 @@ class DQNAgent(object):
     return replay_memory.WrappedReplayMemory(
         num_actions=self.num_actions,
         observation_size=self.observation_size,
+        self_hand_shape=self.self_hand_shape,
         batch_size=32,
         stack_size=1,
         use_staging=use_staging,
@@ -258,11 +285,20 @@ class DQNAgent(object):
         self._replay_qs * replay_action_one_hot,
         reduction_indices=1,
         name='replay_chosen_q')
+    replay_chosen_tom = tf.reduce_sum(
+        self._replay_tom * replay_action_one_hot,
+        reduction_indices=1,
+        name='replay_chosen_tom')
 
     target = tf.stop_gradient(self._build_target_q_op())
     loss = tf.losses.huber_loss(
         target, replay_chosen_q, reduction=tf.losses.Reduction.NONE)
-    return self.optimizer.minimize(tf.reduce_mean(loss))
+    
+    tom_target = self._replay.self_hands
+    tom_loss = tf.losses.huber_loss(
+        tom_target, replay_chosen_tom, reduction=tf.losses.Reduction.NONE)
+
+    return self.optimizer.minimize(tf.reduce_mean(loss) + self.tom_lambda * tf.reduce_mean(tom_loss))
 
   def _build_sync_op(self):
     """Build ops for assigning weights from online to target network.
@@ -276,12 +312,17 @@ class DQNAgent(object):
         tf.GraphKeys.TRAINABLE_VARIABLES, scope='Online')
     trainables_target = tf.get_collection(
         tf.GraphKeys.TRAINABLE_VARIABLES, scope='Target')
-    for (w_online, w_target) in zip(trainables_online, trainables_target):
-      # Assign weights from online to target network.
-      sync_qt_ops.append(w_target.assign(w_online, use_locking=True))
+    trainables_online_dict = {var.name: var for var in trainables_online}
+    trainables_target_dict = {var.name: var for var in trainables_target}
+    for var_name in trainables_online_dict:
+      if 'tom_head' != var_name:
+        sync_qt_ops.append(trainables_target_dict[var_name].assign(trainables_online_dict[var_name], use_locking=True))
+    # for (w_online, w_target) in zip(trainables_online, trainables_target):
+    #   # Assign weights from online to target network.
+    #   sync_qt_ops.append(w_target.assign(w_online, use_locking=True))
     return sync_qt_ops
 
-  def begin_episode(self, current_player, legal_actions, observation):
+  def begin_episode(self, current_player, legal_actions, observation, self_hand):
     """Returns the agent's first action.
 
     Args:
@@ -296,10 +337,10 @@ class DQNAgent(object):
 
     self.action = self._select_action(observation, legal_actions)
     self._record_transition(current_player, 0, observation, legal_actions,
-                            self.action, begin=True)
+                            self.action, self_hand, begin=True)
     return self.action
 
-  def step(self, reward, current_player, legal_actions, observation):
+  def step(self, reward, current_player, legal_actions, observation, self_hand):
     """Stores observations from last transition and chooses a new action.
 
     Notifies the agent of the outcome of the latest transition and stores it
@@ -318,7 +359,7 @@ class DQNAgent(object):
 
     self.action = self._select_action(observation, legal_actions)
     self._record_transition(current_player, reward, observation, legal_actions,
-                            self.action)
+                            self.action, self_hand)
     return self.action
 
   def end_episode(self, final_rewards):
@@ -332,7 +373,7 @@ class DQNAgent(object):
     self._post_transitions(terminal_rewards=final_rewards)
 
   def _record_transition(self, current_player, reward, observation,
-                         legal_actions, action, begin=False):
+                         legal_actions, action, self_hand, begin=False):
     """Records the most recent transition data.
 
     Specifically, the data consists of (r_t, o_{t+1}, l_{t+1}, a_{t+1}), where
@@ -351,8 +392,8 @@ class DQNAgent(object):
     """
     self.transitions[current_player].append(
         Transition(reward, np.array(observation, dtype=np.uint8, copy=True),
-                   np.array(legal_actions, dtype=np.float32, copy=True),
-                   action, begin))
+                   np.array(legal_actions, dtype=np.float32, copy=True), action,
+                   np.array(self_hand, dtype=np.uint8, copy=True), begin))
 
   def _post_transitions(self, terminal_rewards):
     """Posts this episode to the replay memory.
@@ -376,7 +417,7 @@ class DQNAgent(object):
 
         self._store_transition(transition.observation, transition.action,
                                reward, final_transition,
-                               transition.legal_actions)
+                               transition.legal_actions, transition.self_hand)
 
       # Now that this episode has been stored, drop it from the transitions
       # buffer.
@@ -444,7 +485,7 @@ class DQNAgent(object):
     self.training_steps += 1
 
   def _store_transition(self, observation, action, reward, is_terminal,
-                        legal_actions):
+                        legal_actions, self_hand):
     """Stores a transition during training mode.
 
     Executes a tf session and executes replay memory ops in order to store the
@@ -465,7 +506,8 @@ class DQNAgent(object):
               self._replay.add_action_ph: action,
               self._replay.add_reward_ph: reward,
               self._replay.add_terminal_ph: is_terminal,
-              self._replay.add_legal_actions_ph: legal_actions
+              self._replay.add_legal_actions_ph: legal_actions,
+              self._replay.add_self_hand_ph: self_hand
           })
 
   def bundle_and_checkpoint(self, checkpoint_dir, iteration_number):

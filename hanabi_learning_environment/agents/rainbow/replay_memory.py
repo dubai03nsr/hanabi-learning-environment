@@ -81,8 +81,8 @@ class OutOfGraphReplayMemory(object):
     invalid_range: `np.array`, currently invalid indices.
   """
 
-  def __init__(self, num_actions, observation_size, stack_size, replay_capacity,
-               batch_size, update_horizon=1, gamma=1.0):
+  def __init__(self, num_actions, observation_size, self_hand_shape, stack_size,
+               replay_capacity, batch_size, update_horizon=1, gamma=1.0):
     """Data structure doing the heavy lifting.
 
     Args:
@@ -95,6 +95,7 @@ class OutOfGraphReplayMemory(object):
       gamma: float, the discount factor.
     """
     self._observation_size = observation_size
+    self._self_hand_shape = self_hand_shape
     self._num_actions = num_actions
     self._replay_capacity = replay_capacity
     self._batch_size = batch_size
@@ -116,12 +117,13 @@ class OutOfGraphReplayMemory(object):
     self.terminals = np.empty((replay_capacity), dtype=np.uint8)
     self.legal_actions = np.empty((replay_capacity, num_actions),
                                   dtype=np.float32)
+    self.self_hands = np.empty((replay_capacity, *self_hand_shape), dtype=np.uint8)
     self.reset_state_batch_arrays(batch_size)
     self.add_count = np.array(0)
 
     self.invalid_range = np.zeros((self._stack_size))
 
-  def add(self, observation, action, reward, terminal, legal_actions):
+  def add(self, observation, action, reward, terminal, legal_actions, self_hand):
     """Adds a transition to the replay memory.
 
     Since the next_observation in the transition will be the observation added
@@ -140,17 +142,19 @@ class OutOfGraphReplayMemory(object):
     if self.is_empty() or self.terminals[self.cursor() - 1] == 1:
       dummy_observation = np.zeros((self._observation_size))
       dummy_legal_actions = np.zeros((self._num_actions))
+      dummy_self_hand = np.zeros(self._self_hand_shape)
       for _ in range(self._stack_size - 1):
-        self._add(dummy_observation, 0, 0, 0, dummy_legal_actions)
-    self._add(observation, action, reward, terminal, legal_actions)
+        self._add(dummy_observation, 0, 0, 0, dummy_legal_actions, dummy_self_hand)
+    self._add(observation, action, reward, terminal, legal_actions, self_hand)
 
-  def _add(self, observation, action, reward, terminal, legal_actions):
+  def _add(self, observation, action, reward, terminal, legal_actions, self_hand):
     cursor = self.cursor()
     self.observations[cursor] = observation
     self.actions[cursor] = action
     self.rewards[cursor] = reward
     self.terminals[cursor] = terminal
     self.legal_actions[cursor] = legal_actions
+    self.self_hands[cursor] = self_hand
     self.add_count += 1
     self.invalid_range = invalid_range(self.cursor(), self._replay_capacity,
                                        self._stack_size)
@@ -306,6 +310,7 @@ class OutOfGraphReplayMemory(object):
     indices_batch = np.empty((batch_size), dtype=np.int32)
     next_legal_actions_batch = np.empty((batch_size, self._num_actions),
                                         dtype=np.float32)
+    self_hands_batch = np.empty((batch_size, *self._self_hand_shape), dtype=np.uint8)
 
     for batch_element, memory_index in enumerate(indices):
       indices_batch[batch_element] = memory_index
@@ -451,6 +456,7 @@ class WrappedReplayMemory(object):
   def __init__(self,
                num_actions,
                observation_size,
+               self_hand_shape,
                stack_size,
                use_staging=True,
                replay_capacity=1000000,
@@ -489,9 +495,10 @@ class WrappedReplayMemory(object):
     # Allow subclasses to create self.memory.
     if wrapped_memory is not None:
       self.memory = wrapped_memory
+      assert(False)
     else:
       self.memory = OutOfGraphReplayMemory(
-          num_actions, observation_size, stack_size,
+          num_actions, observation_size, self_hand_shape, stack_size,
           replay_capacity, batch_size, update_horizon, gamma)
 
     with tf.name_scope('replay'):
@@ -505,10 +512,12 @@ class WrappedReplayMemory(object):
             tf.uint8, [], name='add_terminal_ph')
         self.add_legal_actions_ph = tf.placeholder(
             tf.float32, [num_actions], name='add_legal_actions_ph')
+        self.add_self_hand_ph = tf.placeholder(
+            tf.uint8, [*self_hand_shape], name='add_self_hand_ph')
 
       add_transition_ph = [
           self.add_obs_ph, self.add_action_ph, self.add_reward_ph,
-          self.add_terminal_ph, self.add_legal_actions_ph
+          self.add_terminal_ph, self.add_legal_actions_ph, self.add_self_hand_ph
       ]
 
       with tf.device('/cpu:*'):
@@ -518,14 +527,14 @@ class WrappedReplayMemory(object):
         self.transition = tf.py_func(
             self.memory.sample_transition_batch, [],
             [tf.uint8, tf.int32, tf.float32, tf.uint8, tf.uint8, tf.int32,
-             tf.float32],
+             tf.float32, tf.uint8],
             name='replay_sample_py_func')
 
         if use_staging:
           # To hide the py_func latency use a staging area to pre-fetch the next
           # batch of transitions.
           (states, actions, rewards, next_states,
-           terminals, indices, next_legal_actions) = self.transition
+           terminals, indices, next_legal_actions, self_hands) = self.transition
           # StagingArea requires all the shapes to be defined.
           states.set_shape([batch_size, observation_size, stack_size])
           actions.set_shape([batch_size])

@@ -231,6 +231,12 @@ class HanabiEnv(Environment):
       Integer, number of moves.
     """
     return self.game.max_moves()
+  
+  def self_hand_shape(self):
+    """Returns shape of self hand attributes to be predicted.
+    """
+    hand_size, n_color, n_rank = self.game.hand_size(), self.game.num_colors(), self.game.num_ranks()
+    return (hand_size, n_color + n_rank, 2)
 
   def step(self, action):
     """Take one step in the game.

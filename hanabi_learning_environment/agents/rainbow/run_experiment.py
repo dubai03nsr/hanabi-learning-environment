@@ -165,12 +165,14 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
     return dqn_agent.DQNAgent(observation_size=obs_stacker.observation_size(),
                               num_actions=environment.num_moves(),
                               num_players=environment.players,
+                              self_hand_shape=environment.self_hand_shape(),
                               tf_device='/gpu:0')
   elif agent_type == 'Rainbow':
     return rainbow_agent.RainbowAgent(
         observation_size=obs_stacker.observation_size(),
         num_actions=environment.num_moves(),
         num_players=environment.players,
+        self_hand_shape=environment.self_hand_shape(),
         tf_device='/gpu:0')
   else:
     raise ValueError('Expected valid agent_type, got {}'.format(agent_type))
@@ -251,7 +253,7 @@ def format_legal_moves(legal_moves, action_dim):
   return new_legal_moves
 
 
-def parse_observations(observations, num_actions, obs_stacker):
+def parse_observations(observations, env, obs_stacker):
   """Deconstructs the rich observation data into relevant components.
 
   Args:
@@ -266,25 +268,32 @@ def parse_observations(observations, num_actions, obs_stacker):
       corresponding to legal moves.
     observation_vector: Vectorized observation for the current player.
   """
-  for player_observation in observations['player_observations']:
-      print(player_observation['pyhanabi'].hand_string())
-  self_hands = []
-  for i in range(len(observations['player_observations'])):
-    self_hands.append(observations['player_observations'][i-1]['pyhanabi'].right_hand_string())
-  print(self_hands)
-  raise Exception()
   current_player = observations['current_player']
   current_player_observation = (
       observations['player_observations'][current_player])
 
   legal_moves = current_player_observation['legal_moves_as_int']
+  num_actions = env.num_moves()
   legal_moves = format_legal_moves(legal_moves, num_actions)
 
   observation_vector = current_player_observation['vectorized']
   obs_stacker.add_observation(observation_vector, current_player)
   observation_vector = obs_stacker.get_observation_stack(current_player)
 
-  return current_player, legal_moves, observation_vector
+  self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
+  hand_size, n_color, n_rank = env.game.hand_size(), env.game.num_colors(), env.game.num_ranks()
+  self_hand = np.zeros((hand_size, n_color + n_rank, 2)) # binary for each (card_i, [color or rank])
+  self_hand[:, :, 1] = 1 # idx 1 is 'no', which is default
+  n_card = len(self_hand_str) // 2
+  for card_i in range(n_card):
+    color, rank = self_hand_str[2 * card_i], self_hand_str[2 * card_i + 1]
+    color, rank = 'RYGWB'.index(color), '12345'.index(rank)
+    self_hand[card_i, color, 0] = 1
+    self_hand[card_i, color, 1] = 0
+    self_hand[card_i, n_color + rank, 0] = 1
+    self_hand[card_i, n_color + rank, 1] = 0
+
+  return current_player, legal_moves, observation_vector, self_hand
 
 
 def run_one_episode(agent, environment, obs_stacker):
@@ -301,9 +310,9 @@ def run_one_episode(agent, environment, obs_stacker):
   """
   obs_stacker.reset_stack()
   observations = environment.reset()
-  current_player, legal_moves, observation_vector = (
-      parse_observations(observations, environment.num_moves(), obs_stacker))
-  action = agent.begin_episode(current_player, legal_moves, observation_vector)
+  current_player, legal_moves, observation_vector, self_hand = (
+      parse_observations(observations, environment, obs_stacker))
+  action = agent.begin_episode(current_player, legal_moves, observation_vector, self_hand)
 
   is_done = False
   total_reward = 0
@@ -325,11 +334,11 @@ def run_one_episode(agent, environment, obs_stacker):
     step_number += 1
     if is_done:
       break
-    current_player, legal_moves, observation_vector = (
-        parse_observations(observations, environment.num_moves(), obs_stacker))
+    current_player, legal_moves, observation_vector, self_hand = (
+        parse_observations(observations, environment, obs_stacker))
     if current_player in has_played:
       action = agent.step(reward_since_last_action[current_player],
-                          current_player, legal_moves, observation_vector)
+                          current_player, legal_moves, observation_vector, self_hand)
     else:
       # Each player begins the episode on their first turn (which may not be
       # the first move of the game).
