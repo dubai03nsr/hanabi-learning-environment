@@ -79,9 +79,9 @@ def dqn_template(state, num_actions, layer_size=512, num_layers=1):
   net = tf.squeeze(net, axis=2)
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size,
-                               activation_fn=tf.nn.relu, name=f'layer_{_}')
+                               activation_fn=tf.nn.relu)
   net = slim.fully_connected(net, num_actions, activation_fn=None,
-                             weights_initializer=weights_initializer, name='q_head')
+                             weights_initializer=weights_initializer)
   return net
 
 def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_layers=1):
@@ -94,13 +94,13 @@ def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_la
   net = tf.squeeze(net, axis=2)
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size,
-                               activation_fn=tf.nn.relu, name=f'layer_{_}')
+                               activation_fn=tf.nn.relu)
   dqn_head = slim.fully_connected(net, num_actions, activation_fn=None,
-                             weights_initializer=weights_initializer, name='q_head')
+                             weights_initializer=weights_initializer)
   
   tom_size = np.prod(self_hand_shape)
   tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
-                             weights_initializer=weights_initializer, name='tom_head')
+                             weights_initializer=weights_initializer, scope='tom_head')
   tom_head = tf.reshape(tom_head, [-1] + self_hand_shape)
   # softmax tom_head along last dimension
   tom_head = tf.nn.softmax(tom_head, axis=-1)
@@ -312,14 +312,14 @@ class DQNAgent(object):
         tf.GraphKeys.TRAINABLE_VARIABLES, scope='Online')
     trainables_target = tf.get_collection(
         tf.GraphKeys.TRAINABLE_VARIABLES, scope='Target')
-    trainables_online_dict = {var.name: var for var in trainables_online}
-    trainables_target_dict = {var.name: var for var in trainables_target}
-    for var_name in trainables_online_dict:
-      if 'tom_head' != var_name:
-        sync_qt_ops.append(trainables_target_dict[var_name].assign(trainables_online_dict[var_name], use_locking=True))
-    # for (w_online, w_target) in zip(trainables_online, trainables_target):
-    #   # Assign weights from online to target network.
-    #   sync_qt_ops.append(w_target.assign(w_online, use_locking=True))
+    # trainables_online_dict = {var.name: var for var in trainables_online}
+    # trainables_target_dict = {var.name: var for var in trainables_target}
+    # for var_name in trainables_online_dict:
+    #   if 'tom_head' != var_name:
+    #     sync_qt_ops.append(trainables_target_dict[var_name].assign(trainables_online_dict[var_name], use_locking=True))
+    for (w_online, w_target) in zip(trainables_online, trainables_target):
+      # Assign weights from online to target network.
+      sync_qt_ops.append(w_target.assign(w_online, use_locking=True))
     return sync_qt_ops
 
   def begin_episode(self, current_player, legal_actions, observation, self_hand):
