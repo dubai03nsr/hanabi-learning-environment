@@ -44,7 +44,7 @@ class OutOfGraphPrioritizedReplayMemory(replay_memory.OutOfGraphReplayMemory):
   See replay_memory.py for details.
   """
 
-  def __init__(self, num_actions, observation_size, stack_size, replay_capacity,
+  def __init__(self, num_actions, observation_size, self_hand_shape, stack_size, replay_capacity,
                batch_size, update_horizon=1, gamma=1.0):
     """This data structure does the heavy lifting in the replay memory.
 
@@ -59,7 +59,7 @@ class OutOfGraphPrioritizedReplayMemory(replay_memory.OutOfGraphReplayMemory):
     """
     super(OutOfGraphPrioritizedReplayMemory, self).__init__(
         num_actions=num_actions,
-        observation_size=observation_size, stack_size=stack_size,
+        observation_size=observation_size, self_hand_shape=self_hand_shape, stack_size=stack_size,
         replay_capacity=replay_capacity, batch_size=batch_size,
         update_horizon=update_horizon, gamma=gamma)
 
@@ -206,6 +206,7 @@ class WrappedPrioritizedReplayMemory(replay_memory.WrappedReplayMemory):
   def __init__(self,
                num_actions,
                observation_size,
+               self_hand_shape,
                stack_size,
                use_staging=True,
                replay_capacity=1000000,
@@ -229,13 +230,13 @@ class WrappedPrioritizedReplayMemory(replay_memory.WrappedReplayMemory):
       ValueError: If update_horizon is not positive.
       ValueError: If discount factor is not in [0, 1].
     """
-    memory = OutOfGraphPrioritizedReplayMemory(num_actions, observation_size,
+    memory = OutOfGraphPrioritizedReplayMemory(num_actions, observation_size, self_hand_shape,
                                                stack_size, replay_capacity,
                                                batch_size, update_horizon,
                                                gamma)
     super(WrappedPrioritizedReplayMemory, self).__init__(
         num_actions,
-        observation_size, stack_size, use_staging, replay_capacity, batch_size,
+        observation_size, self_hand_shape, stack_size, use_staging, replay_capacity, batch_size,
         update_horizon, gamma, wrapped_memory=memory)
 
   def tf_set_priority(self, indices, losses):

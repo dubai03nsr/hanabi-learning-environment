@@ -157,6 +157,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
     return prioritized_replay_memory.WrappedPrioritizedReplayMemory(
         num_actions=self.num_actions,
         observation_size=self.observation_size,
+        self_hand_shape=self.self_hand_shape,
         stack_size=1,
         use_staging=use_staging,
         update_horizon=self.update_horizon,
