@@ -85,7 +85,7 @@ def launch_experiment():
 
   environment = run_experiment.create_environment()
   obs_stacker = run_experiment.create_obs_stacker(environment, history_size=FLAGS.history_size)
-  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow')
+  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='DQN')
 
   checkpoint_dir = '{}/checkpoints'.format(FLAGS.base_dir)
   start_iteration, experiment_checkpointer = (

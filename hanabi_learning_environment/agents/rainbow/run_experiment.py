@@ -166,14 +166,14 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
                               num_actions=environment.num_moves(),
                               num_players=environment.players,
                               self_hand_shape=environment.self_hand_shape(),
-                              tf_device='/cpu:*')
+                              tf_device='/gpu:0')
   elif agent_type == 'Rainbow':
     return rainbow_agent.RainbowAgent(
         observation_size=obs_stacker.observation_size(),
         num_actions=environment.num_moves(),
         num_players=environment.players,
         self_hand_shape=environment.self_hand_shape(),
-        tf_device='/cpu:*')
+        tf_device='/gpu:0')
   else:
     raise ValueError('Expected valid agent_type, got {}'.format(agent_type))
 
