@@ -291,10 +291,6 @@ class DQNAgent(object):
         self._replay_qs * replay_action_one_hot,
         reduction_indices=1,
         name='replay_chosen_q')
-    replay_chosen_tom = tf.reduce_sum(
-        self._replay_tom * replay_action_one_hot,
-        reduction_indices=1,
-        name='replay_chosen_tom')
 
     target = tf.stop_gradient(self._build_target_q_op())
     loss = tf.losses.huber_loss(
@@ -302,8 +298,8 @@ class DQNAgent(object):
     
     # """
     tom_target = self._replay.self_hands
-    tom_loss = tf.losses.huber_loss(
-        tom_target, replay_chosen_tom, reduction=tf.losses.Reduction.NONE)
+    tom_loss = tf.losses.cross_entropy_loss(
+        tom_target, self._replay_tom, reduction=tf.losses.Reduction.NONE)
     # """
 
     return self.optimizer.minimize(tf.reduce_mean(loss) + self.tom_lambda * tf.reduce_mean(tom_loss))
