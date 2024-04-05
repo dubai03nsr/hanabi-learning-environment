@@ -298,9 +298,10 @@ class DQNAgent(object):
         target, replay_chosen_q, reduction=tf.losses.Reduction.NONE)
     
     tom_target = self._replay.self_hands
-    # set tom_weights to be 1 if the label is 1, 0.2 otherwise
+    # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
     tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
     cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+    print('tom_target.shape', tom_target.shape, 'self._replay_tom.shape', self._replay_tom.shape)
     tom_loss = cce(tom_target, self._replay_tom, sample_weights=tom_weights, reduction=tf.losses.Reduction.NONE)
 
     return self.optimizer.minimize(tf.reduce_mean(loss) + self.tom_lambda * tf.reduce_mean(tom_loss))
