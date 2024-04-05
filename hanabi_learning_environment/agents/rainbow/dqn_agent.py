@@ -99,12 +99,14 @@ def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_la
                              weights_initializer=weights_initializer)
   
   tom_size = int(np.prod(self_hand_shape))
+  print('self_hand_shape:', self_hand_shape, 'tom_size:', tom_size)
   tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
                              weights_initializer=weights_initializer, scope='tom_head')
   tom_head = tf.reshape(tom_head, [-1] + list(self_hand_shape))
   # softmax tom_head along last dimension
   tom_head = tf.nn.softmax(tom_head, axis=-1)
-  return dqn_head, tom_head
+  # return dqn_head, tom_head
+  return dqn_head
 
 @gin.configurable
 class DQNAgent(object):
@@ -201,7 +203,8 @@ class DQNAgent(object):
       # Calling online_convnet will generate a new graph as defined in
       # graph_template using whatever input is passed, but will always share
       # the same weights.
-      online_convnet = tf.make_template('Online', dqn_tom_template)
+      # online_convnet = tf.make_template('Online', dqn_tom_template)
+      online_convnet = tf.make_template('Online', graph_template)
       target_convnet = tf.make_template('Target', graph_template)
       # The state of the agent. The last axis is the number of past observations
       # that make up the state.
@@ -211,11 +214,14 @@ class DQNAgent(object):
       self.legal_actions_ph = tf.placeholder(tf.float32,
                                              [self.num_actions],
                                              name='legal_actions_ph')
-      self._q, _ = online_convnet(
-          state=self.state_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape)
+      # self._q, _ = online_convnet(
+      self._q = online_convnet(
+          # state=self.state_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape)
+          state=self.state_ph, num_actions=self.num_actions)
       self._replay = self._build_replay_memory(use_staging)
-      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self.num_actions,
-                                                         self.self_hand_shape)
+      # self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self.num_actions,
+                                                         # self.self_hand_shape)
+      self._replay_qs = online_convnet(self._replay.states, self.num_actions)
       self._replay_next_qt = target_convnet(self._replay.next_states,
                                             self.num_actions)
       self._train_op = self._build_train_op()
@@ -294,11 +300,14 @@ class DQNAgent(object):
     loss = tf.losses.huber_loss(
         target, replay_chosen_q, reduction=tf.losses.Reduction.NONE)
     
+    """
     tom_target = self._replay.self_hands
     tom_loss = tf.losses.huber_loss(
         tom_target, replay_chosen_tom, reduction=tf.losses.Reduction.NONE)
+    """
 
-    return self.optimizer.minimize(tf.reduce_mean(loss) + self.tom_lambda * tf.reduce_mean(tom_loss))
+    # return self.optimizer.minimize(tf.reduce_mean(loss) + self.tom_lambda * tf.reduce_mean(tom_loss))
+    return self.optimizer.minimize(tf.reduce_mean(loss))
 
   def _build_sync_op(self):
     """Build ops for assigning weights from online to target network.

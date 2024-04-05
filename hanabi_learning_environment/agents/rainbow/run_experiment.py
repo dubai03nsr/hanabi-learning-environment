@@ -166,14 +166,14 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
                               num_actions=environment.num_moves(),
                               num_players=environment.players,
                               self_hand_shape=environment.self_hand_shape(),
-                              tf_device='/gpu:0')
+                              tf_device='/cpu:*')
   elif agent_type == 'Rainbow':
     return rainbow_agent.RainbowAgent(
         observation_size=obs_stacker.observation_size(),
         num_actions=environment.num_moves(),
         num_players=environment.players,
         self_hand_shape=environment.self_hand_shape(),
-        tf_device='/gpu:0')
+        tf_device='/cpu:*')
   else:
     raise ValueError('Expected valid agent_type, got {}'.format(agent_type))
 
@@ -343,7 +343,7 @@ def run_one_episode(agent, environment, obs_stacker):
       # Each player begins the episode on their first turn (which may not be
       # the first move of the game).
       action = agent.begin_episode(current_player, legal_moves,
-                                   observation_vector)
+                                   observation_vector, self_hand)
       has_played.add(current_player)
 
     # Reset this player's reward accumulator.

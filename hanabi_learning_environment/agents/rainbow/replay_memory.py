@@ -310,7 +310,7 @@ class OutOfGraphReplayMemory(object):
     indices_batch = np.empty((batch_size), dtype=np.int32)
     next_legal_actions_batch = np.empty((batch_size, self._num_actions),
                                         dtype=np.float32)
-    self_hands_batch = np.empty((batch_size, *self._self_hand_shape), dtype=np.uint8)
+    self_hands_batch = self.self_hands[indices]
 
     for batch_element, memory_index in enumerate(indices):
       indices_batch[batch_element] = memory_index
@@ -350,7 +350,7 @@ class OutOfGraphReplayMemory(object):
 
     return (self._state_batch, action_batch, reward_batch,
             self._next_state_batch, terminal_batch, indices_batch,
-            next_legal_actions_batch)
+            next_legal_actions_batch, self_hands_batch)
 
   def _generate_filename(self, checkpoint_dir, name, suffix):
     return os.path.join(checkpoint_dir, '{}_ckpt.{}.gz'.format(name, suffix))
@@ -495,7 +495,6 @@ class WrappedReplayMemory(object):
     # Allow subclasses to create self.memory.
     if wrapped_memory is not None:
       self.memory = wrapped_memory
-      assert(False)
     else:
       self.memory = OutOfGraphReplayMemory(
           num_actions, observation_size, self_hand_shape, stack_size,
@@ -544,15 +543,16 @@ class WrappedReplayMemory(object):
           terminals.set_shape([batch_size])
           indices.set_shape([batch_size])
           next_legal_actions.set_shape([batch_size, num_actions])
+          self_hands.set_shape([batch_size, *self_hand_shape])
 
           # Create the staging area in CPU.
           prefetch_area = tf.contrib.staging.StagingArea(
               [tf.uint8, tf.int32, tf.float32, tf.uint8, tf.uint8, tf.int32,
-               tf.float32])
+               tf.float32, tf.uint8])
 
           self.prefetch_batch = prefetch_area.put(
               (states, actions, rewards, next_states, terminals, indices,
-               next_legal_actions))
+               next_legal_actions, self_hands))
         else:
           self.prefetch_batch = tf.no_op()
 
@@ -562,7 +562,7 @@ class WrappedReplayMemory(object):
         self.transition = prefetch_area.get()
 
       (self.states, self.actions, self.rewards, self.next_states,
-       self.terminals, self.indices, self.next_legal_actions) = self.transition
+       self.terminals, self.indices, self.next_legal_actions, self.self_hands) = self.transition
 
       # Since these are py_func tensors, no information about their shape is
       # present. Setting the shape only for the necessary tensors
