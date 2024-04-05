@@ -281,17 +281,14 @@ def parse_observations(observations, env, obs_stacker):
   observation_vector = obs_stacker.get_observation_stack(current_player)
 
   self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
-  hand_size, n_color, n_rank = env.game.hand_size(), env.game.num_colors(), env.game.num_ranks()
-  self_hand = np.zeros((hand_size, n_color + n_rank, 2)) # binary for each (card_i, [color or rank])
-  self_hand[:, :, 1] = 1 # idx 1 is 'no', which is default
+  self_hand = np.zeros(env.self_hand_shape()) # binary for each (card_i, [color or rank]). 1=yes, 0=no
   n_card = len(self_hand_str) // 2
+  n_color = env.game.num_colors()
   for card_i in range(n_card):
     color, rank = self_hand_str[2 * card_i], self_hand_str[2 * card_i + 1]
     color, rank = 'RYGWB'.index(color), '12345'.index(rank)
-    self_hand[card_i, color, 0] = 1
-    self_hand[card_i, color, 1] = 0
-    self_hand[card_i, n_color + rank, 0] = 1
-    self_hand[card_i, n_color + rank, 1] = 0
+    self_hand[card_i, color] = 1
+    self_hand[card_i, n_color + rank] = 1
 
   return current_player, legal_moves, observation_vector, self_hand
 

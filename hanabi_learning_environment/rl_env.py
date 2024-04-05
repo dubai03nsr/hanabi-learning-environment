@@ -236,7 +236,7 @@ class HanabiEnv(Environment):
     """Returns shape of self hand attributes to be predicted.
     """
     hand_size, n_color, n_rank = self.game.hand_size(), self.game.num_colors(), self.game.num_ranks()
-    return (hand_size, n_color + n_rank, 2)
+    return (hand_size, n_color + n_rank)
 
   def step(self, action):
     """Take one step in the game.
