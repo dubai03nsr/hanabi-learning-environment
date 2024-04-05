@@ -99,8 +99,8 @@ def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_la
                              weights_initializer=weights_initializer)
   
   self_hand_pred_shape = list(self_hand_shape) + [2]
-  tom_size = int(np.prod(self_hand_shape))
-  print('self_hand_shape:', self_hand_shape, 'tom_size:', tom_size)
+  tom_size = int(np.prod(self_hand_pred_shape))
+  print('self_hand_pred_shape:', self_hand_pred_shape, 'tom_size:', tom_size)
   tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
                              weights_initializer=weights_initializer, scope='tom_head')
   tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
