@@ -58,7 +58,7 @@ flags.DEFINE_string('logging_file_prefix', 'log',
 
 flags.DEFINE_integer('history_size', 4,
                     'Number of time steps to stack in the observation.', lower_bound=1)
-flags.DEFINE_integer('num_iterations', 200,
+flags.DEFINE_integer('num_iterations', 100,
                     'Number of training iterations', lower_bound=1)
 
 def launch_experiment():
@@ -77,8 +77,6 @@ def launch_experiment():
   if FLAGS.base_dir == None:
     raise ValueError('--base_dir is None: please provide a path for '
                      'logs and checkpoints.')
-
-  print('History size: ', FLAGS.history_size)
 
   run_experiment.load_gin_configs(FLAGS.gin_files, FLAGS.gin_bindings)
   experiment_logger = logger.Logger('{}/logs'.format(FLAGS.base_dir))

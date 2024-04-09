@@ -6,7 +6,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-with open('rainbow_hs1_ni200.out') as f:
+with open('debug.txt') as f:
     returns = []
     for line in f.readlines():
         if 'tensorflow:Average per episode return' in line:
@@ -16,4 +16,4 @@ with open('rainbow_hs1_ni200.out') as f:
 # plot returns
 plt.plot(returns)
 # save plot
-plt.savefig('returns_hs1_ni200.png')
+plt.savefig('debug.png')

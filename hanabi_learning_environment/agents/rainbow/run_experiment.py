@@ -45,7 +45,8 @@ class ObservationStacker(object):
   """Class for stacking agent observations."""
 
   def __init__(self, history_size, observation_size, num_players):
-    print("history_size:", history_size)
+    print("history_size", history_size)
+    print("num_players", num_players)
     """Initializer for observation stacker.
 
     Args:
