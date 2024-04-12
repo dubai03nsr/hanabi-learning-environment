@@ -70,6 +70,36 @@ def rainbow_template(state,
   net = tf.reshape(net, [-1, num_actions, num_atoms])
   return net
 
+def rainbow_tom_template(state,
+                     num_actions,
+                     self_hand_shape,
+                     num_atoms=51,
+                     layer_size=512,
+                     num_layers=1):
+  """
+  rainbow_template but with a tom_head
+  """
+  weights_initializer = slim.variance_scaling_initializer(
+      factor=1.0 / np.sqrt(3.0), mode='FAN_IN', uniform=True)
+
+  net = tf.cast(state, tf.float32)
+  net = tf.squeeze(net, axis=2)
+
+  for _ in range(num_layers):
+    net = slim.fully_connected(net, layer_size,
+                               activation_fn=tf.nn.relu)
+  q_head = slim.fully_connected(net, num_actions * num_atoms, activation_fn=None,
+                             weights_initializer=weights_initializer)
+  q_head = tf.reshape(q_head, [-1, num_actions, num_atoms])
+
+  self_hand_pred_shape = list(self_hand_shape) + [2]
+  tom_size = int(np.prod(self_hand_pred_shape))
+  print('self_hand_pred_shape:', self_hand_pred_shape, 'tom_size:', tom_size)
+  tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
+                             weights_initializer=weights_initializer, scope='tom_head')
+  tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
+
+  return q_head, tom_head
 
 @gin.configurable
 class RainbowAgent(dqn_agent.DQNAgent):
@@ -126,6 +156,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
     self.optimizer_epsilon = optimizer_epsilon
 
     graph_template = functools.partial(rainbow_template, num_atoms=num_atoms)
+    graph_tom_template = functools.partial(rainbow_tom_template, num_atoms=num_atoms)
     super(RainbowAgent, self).__init__(
         num_actions=num_actions,
         observation_size=observation_size,
@@ -141,6 +172,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
         epsilon_eval=epsilon_eval,
         epsilon_decay_period=epsilon_decay_period,
         graph_template=graph_template,
+        graph_tom_template=graph_tom_template,
         tf_device=tf_device)
     tf.logging.info('\t learning_rate: %f', learning_rate)
     tf.logging.info('\t optimizer_epsilon: %f', optimizer_epsilon)

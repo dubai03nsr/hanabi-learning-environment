@@ -131,6 +131,7 @@ class DQNAgent(object):
                epsilon_eval=0.001,
                epsilon_decay_period=1000,
                graph_template=dqn_template,
+               graph_tom_template=dqn_tom_template,
                tf_device='/cpu:*',
                use_staging=True,
                optimizer=tf.train.RMSPropOptimizer(
@@ -204,7 +205,7 @@ class DQNAgent(object):
       # Calling online_convnet will generate a new graph as defined in
       # graph_template using whatever input is passed, but will always share
       # the same weights.
-      online_convnet = tf.make_template('Online', dqn_tom_template)
+      online_convnet = tf.make_template('Online', graph_tom_template)
       # online_convnet = tf.make_template('Online', graph_template)
       target_convnet = tf.make_template('Target', graph_template)
       # The state of the agent. The last axis is the number of past observations
