@@ -60,6 +60,8 @@ flags.DEFINE_integer('history_size', 4,
                     'Number of time steps to stack in the observation.', lower_bound=1)
 flags.DEFINE_integer('num_iterations', 100,
                     'Number of training iterations', lower_bound=1)
+flags.DEFINE_float('tom_lambda', 0.,
+                   'weight for ToM objective', lower_bound=0.)
 
 def launch_experiment():
   """Launches the experiment.
@@ -83,7 +85,7 @@ def launch_experiment():
 
   environment = run_experiment.create_environment()
   obs_stacker = run_experiment.create_obs_stacker(environment, history_size=FLAGS.history_size)
-  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='DQN')
+  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow', tom_lambda=FLAGS.tom_lambda)
 
   checkpoint_dir = '{}/checkpoints'.format(FLAGS.base_dir)
   start_iteration, experiment_checkpointer = (

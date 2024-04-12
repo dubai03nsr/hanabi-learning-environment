@@ -148,7 +148,7 @@ def create_obs_stacker(environment, history_size=4):
 
 
 @gin.configurable
-def create_agent(environment, obs_stacker, agent_type='DQN'):
+def create_agent(environment, obs_stacker, agent_type='DQN', tom_lambda=0.):
   """Creates the Hanabi agent.
 
   Args:
@@ -167,6 +167,7 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
                               num_actions=environment.num_moves(),
                               num_players=environment.players,
                               self_hand_shape=environment.self_hand_shape(),
+                              tom_lambda=tom_lambda,
                               tf_device='/gpu:0')
   elif agent_type == 'Rainbow':
     return rainbow_agent.RainbowAgent(
@@ -174,6 +175,7 @@ def create_agent(environment, obs_stacker, agent_type='DQN'):
         num_actions=environment.num_moves(),
         num_players=environment.players,
         self_hand_shape=environment.self_hand_shape(),
+        tom_lambda=tom_lambda,
         tf_device='/gpu:0')
   else:
     raise ValueError('Expected valid agent_type, got {}'.format(agent_type))
