@@ -94,7 +94,7 @@ def rainbow_tom_template(state,
 
   self_hand_pred_shape = list(self_hand_shape) + [2]
   tom_size = int(np.prod(self_hand_pred_shape))
-  print('self_hand_pred_shape:', self_hand_pred_shape, 'tom_size:', tom_size)
+  # print('self_hand_pred_shape:', self_hand_pred_shape, 'tom_size:', tom_size)
   tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
                              weights_initializer=weights_initializer, scope='tom_head')
   tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
@@ -267,6 +267,13 @@ class RainbowAgent(dqn_agent.DQNAgent):
     loss = tf.nn.softmax_cross_entropy_with_logits(
         labels=target_distribution,
         logits=chosen_action_logits)
+    
+    tom_target = self._replay.self_hands
+    # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
+    tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
+    cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True, reduction=tf.losses.Reduction.NONE)
+    tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
+    loss += self.tom_lambda * tom_loss
 
     optimizer = tf.train.AdamOptimizer(
         learning_rate=self.learning_rate,
@@ -281,7 +288,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
     target_priorities /= tf.reduce_max(target_priorities)
 
     weighted_loss = target_priorities * loss
-
+      
     with tf.control_dependencies([update_priorities_op]):
       return optimizer.minimize(tf.reduce_mean(weighted_loss)), weighted_loss
 

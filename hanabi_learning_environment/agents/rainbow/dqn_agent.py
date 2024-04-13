@@ -301,12 +301,11 @@ class DQNAgent(object):
     tom_target = self._replay.self_hands
     # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
     tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
-    cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
-    # print('tom_target.shape', tom_target.shape, 'self._replay_tom.shape', self._replay_tom.shape)
-    tom_loss = cce(tom_target, self._replay_tom, sample_weights=tom_weights, reduction=tf.losses.Reduction.NONE)
+    cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True, reduction=tf.losses.Reduction.NONE)
+    tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
+    loss += self.tom_lambda * tom_loss
 
-    return self.optimizer.minimize(tf.reduce_mean(loss) + self.tom_lambda * tf.reduce_mean(tom_loss))
-    # return self.optimizer.minimize(tf.reduce_mean(loss))
+    return self.optimizer.minimize(tf.reduce_mean(loss))
 
   def _build_sync_op(self):
     """Build ops for assigning weights from online to target network.
