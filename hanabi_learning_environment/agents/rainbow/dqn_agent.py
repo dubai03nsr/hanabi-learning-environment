@@ -213,18 +213,20 @@ class DQNAgent(object):
       states_shape = (1, observation_size, stack_size)
       self.state = np.zeros(states_shape)
       self.state_ph = tf.placeholder(tf.uint8, states_shape, name='state_ph')
+      self.self_hand_ph = tf.placeholder(tf.uint8, self.self_hand_shape, name='self_hand_ph')
       self.legal_actions_ph = tf.placeholder(tf.float32,
                                              [self.num_actions],
                                              name='legal_actions_ph')
       self._q, _ = online_convnet(
       # self._q = online_convnet(
-          state=self.state_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape)
+          state=self.state_ph, self_hand=self.self_hand_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape)
           # state=self.state_ph, num_actions=self.num_actions)
       self._replay = self._build_replay_memory(use_staging)
-      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self.num_actions,
+      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self._replay.self_hands, self.num_actions,
                                                          self.self_hand_shape)
       # self._replay_qs = online_convnet(self._replay.states, self.num_actions)
-      self._replay_next_qt = target_convnet(self._replay.next_states,
+      # self._replay_next_qt = target_convnet(self._replay.next_states,
+      self._replay_next_qt = target_convnet(self._replay.next_states, self._replay.self_hands,
                                             self.num_actions)
       self._train_op = self._build_train_op()
       self._sync_qt_ops = self._build_sync_op()
@@ -342,7 +344,7 @@ class DQNAgent(object):
     """
     self._train_step()
 
-    self.action = self._select_action(observation, legal_actions)
+    self.action = self._select_action(observation, legal_actions, self_hand)
     self._record_transition(current_player, 0, observation, legal_actions,
                             self.action, self_hand, begin=True)
     return self.action
@@ -364,7 +366,7 @@ class DQNAgent(object):
     """
     self._train_step()
 
-    self.action = self._select_action(observation, legal_actions)
+    self.action = self._select_action(observation, legal_actions, self_hand)
     self._record_transition(current_player, reward, observation, legal_actions,
                             self.action, self_hand)
     return self.action
@@ -430,7 +432,7 @@ class DQNAgent(object):
       # buffer.
       self.transitions[player] = []
 
-  def _select_action(self, observation, legal_actions):
+  def _select_action(self, observation, legal_actions, self_hand):
     """Select an action from the set of allowed actions.
 
     Chooses an action randomly with probability self._calculate_epsilon(), and
@@ -461,6 +463,7 @@ class DQNAgent(object):
       # Choose the action maximizing the q function for the current state.
       action = self._sess.run(self._q_argmax,
                               {self.state_ph: self.state,
+                               self.self_hand_ph: self_hand,
                                self.legal_actions_ph: legal_actions})
       assert legal_actions[action] == 0.0, 'Expected legal action.'
       return action

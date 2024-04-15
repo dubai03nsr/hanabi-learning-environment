@@ -290,6 +290,7 @@ def parse_observations(observations, env, obs_stacker):
   for card_i in range(n_card):
     color, rank = self_hand_str[2 * card_i], self_hand_str[2 * card_i + 1]
     color, rank = 'RYGWB'.index(color), '12345'.index(rank)
+    assert(color < n_color)
     self_hand[card_i, color] = 1
     self_hand[card_i, n_color + rank] = 1
 

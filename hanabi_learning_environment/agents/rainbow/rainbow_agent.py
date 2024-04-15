@@ -38,6 +38,7 @@ slim = tf.contrib.slim
 
 @gin.configurable
 def rainbow_template(state,
+                     self_hand,
                      num_actions,
                      num_atoms=51,
                      layer_size=512,
@@ -61,6 +62,9 @@ def rainbow_template(state,
 
   net = tf.cast(state, tf.float32)
   net = tf.squeeze(net, axis=2)
+  self_hand = tf.cast(self_hand, tf.float32)
+  self_hand = tf.reshape(self_hand, [-1, 35])
+  net = tf.concat([net, self_hand], axis=1)
 
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size,
@@ -71,6 +75,7 @@ def rainbow_template(state,
   return net
 
 def rainbow_tom_template(state,
+                     self_hand,
                      num_actions,
                      self_hand_shape,
                      num_atoms=51,
@@ -84,6 +89,9 @@ def rainbow_tom_template(state,
 
   net = tf.cast(state, tf.float32)
   net = tf.squeeze(net, axis=2)
+  self_hand = tf.cast(self_hand, tf.float32)
+  self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
+  net = tf.concat([net, self_hand], axis=1)
 
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size,

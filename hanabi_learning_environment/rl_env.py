@@ -587,6 +587,17 @@ def make(environment_name="Hanabi-Full", num_players=2, pyhanabi_path=None):
             "observation_type":
                 pyhanabi.AgentObservationType.CARD_KNOWLEDGE.value
         })
+  elif environment_name == "Hanabi-Custom":
+    return HanabiEnv(
+        config={
+            "colors": 2,
+            "ranks": 5,
+            "players": num_players,
+            "hand_size": 5,
+            "max_information_tokens": 3,
+            "max_life_tokens": 1,
+            "observation_type": pyhanabi.AgentObservationType.CARD_KNOWLEDGE.value
+        })
   else:
     raise ValueError("Unknown environment {}".format(environment_name))
 
