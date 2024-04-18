@@ -311,6 +311,7 @@ class OutOfGraphReplayMemory(object):
     next_legal_actions_batch = np.empty((batch_size, self._num_actions),
                                         dtype=np.float32)
     self_hands_batch = self.self_hands[indices]
+    next_self_hand_batch = np.empty((batch_size, *self._self_hand_shape), dtype=np.uint8)
 
     for batch_element, memory_index in enumerate(indices):
       indices_batch[batch_element] = memory_index
@@ -347,10 +348,11 @@ class OutOfGraphReplayMemory(object):
           self.get_observation_stack(bootstrap_state_index))
       next_legal_actions_batch[batch_element] = (
           self.legal_actions[bootstrap_state_index])
+      next_self_hand_batch[batch_element] = self.self_hands[bootstrap_state_index]
 
     return (self._state_batch, action_batch, reward_batch,
             self._next_state_batch, terminal_batch, indices_batch,
-            next_legal_actions_batch, self_hands_batch)
+            next_legal_actions_batch, self_hands_batch, next_self_hand_batch)
 
   def _generate_filename(self, checkpoint_dir, name, suffix):
     return os.path.join(checkpoint_dir, '{}_ckpt.{}.gz'.format(name, suffix))
@@ -526,14 +528,14 @@ class WrappedReplayMemory(object):
         self.transition = tf.py_func(
             self.memory.sample_transition_batch, [],
             [tf.uint8, tf.int32, tf.float32, tf.uint8, tf.uint8, tf.int32,
-             tf.float32, tf.uint8],
+             tf.float32, tf.uint8, tf.uint8],
             name='replay_sample_py_func')
 
         if use_staging:
           # To hide the py_func latency use a staging area to pre-fetch the next
           # batch of transitions.
           (states, actions, rewards, next_states,
-           terminals, indices, next_legal_actions, self_hands) = self.transition
+           terminals, indices, next_legal_actions, self_hands, next_self_hands) = self.transition
           # StagingArea requires all the shapes to be defined.
           states.set_shape([batch_size, observation_size, stack_size])
           actions.set_shape([batch_size])
@@ -544,15 +546,16 @@ class WrappedReplayMemory(object):
           indices.set_shape([batch_size])
           next_legal_actions.set_shape([batch_size, num_actions])
           self_hands.set_shape([batch_size, *self_hand_shape])
+          next_self_hands.set_shape([batch_size, *self_hand_shape])
 
           # Create the staging area in CPU.
           prefetch_area = tf.contrib.staging.StagingArea(
               [tf.uint8, tf.int32, tf.float32, tf.uint8, tf.uint8, tf.int32,
-               tf.float32, tf.uint8])
+               tf.float32, tf.uint8, tf.uint8])
 
           self.prefetch_batch = prefetch_area.put(
               (states, actions, rewards, next_states, terminals, indices,
-               next_legal_actions, self_hands))
+               next_legal_actions, self_hands, next_self_hands))
         else:
           self.prefetch_batch = tf.no_op()
 
@@ -562,7 +565,7 @@ class WrappedReplayMemory(object):
         self.transition = prefetch_area.get()
 
       (self.states, self.actions, self.rewards, self.next_states,
-       self.terminals, self.indices, self.next_legal_actions, self.self_hands) = self.transition
+       self.terminals, self.indices, self.next_legal_actions, self.self_hands, self.next_self_hands) = self.transition
 
       # Since these are py_func tensors, no information about their shape is
       # present. Setting the shape only for the necessary tensors

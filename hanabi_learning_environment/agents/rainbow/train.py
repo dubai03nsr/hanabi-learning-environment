@@ -42,7 +42,7 @@ flags.DEFINE_multi_string(
     'Gin bindings to override the values set in the config files '
     '(e.g. "DQNAgent.epsilon_train=0.1").')
 
-flags.DEFINE_string('base_dir', None,
+flags.DEFINE_string('base_dir', 'results',
                     'Base directory to host all required sub-directories.')
 
 flags.DEFINE_string('checkpoint_dir', '',
@@ -56,12 +56,14 @@ flags.DEFINE_string('logging_dir', '',
 flags.DEFINE_string('logging_file_prefix', 'log',
                     'Prefix to use for the log files.')
 
-flags.DEFINE_integer('history_size', 4,
+flags.DEFINE_integer('history_size', 2,
                     'Number of time steps to stack in the observation.', lower_bound=1)
 flags.DEFINE_integer('num_iterations', 1000,
                     'Number of training iterations', lower_bound=1)
 flags.DEFINE_float('tom_lambda', 0.,
                    'weight for ToM objective', lower_bound=0.)
+flags.DEFINE_string('mode', "normal",
+                     '"cheat", "tom" or "normal"')
 
 def launch_experiment():
   """Launches the experiment.
@@ -83,9 +85,9 @@ def launch_experiment():
   run_experiment.load_gin_configs(FLAGS.gin_files, FLAGS.gin_bindings)
   experiment_logger = logger.Logger('{}/logs'.format(FLAGS.base_dir))
 
-  environment = run_experiment.create_environment(game_type='Hanabi-Custom', num_players=2)
+  environment = run_experiment.create_environment(game_type='Hanabi-Full', num_players=2)
   obs_stacker = run_experiment.create_obs_stacker(environment, history_size=FLAGS.history_size)
-  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow', tom_lambda=FLAGS.tom_lambda)
+  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow', tom_lambda=FLAGS.tom_lambda, mode=FLAGS.mode)
 
   checkpoint_dir = '{}/checkpoints'.format(FLAGS.base_dir)
   start_iteration, experiment_checkpointer = (

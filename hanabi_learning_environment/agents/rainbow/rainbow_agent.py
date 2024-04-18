@@ -40,6 +40,8 @@ slim = tf.contrib.slim
 def rainbow_template(state,
                      self_hand,
                      num_actions,
+                     self_hand_shape,
+                     mode,
                      num_atoms=51,
                      layer_size=512,
                      num_layers=1):
@@ -62,22 +64,53 @@ def rainbow_template(state,
 
   net = tf.cast(state, tf.float32)
   net = tf.squeeze(net, axis=2)
-  self_hand = tf.cast(self_hand, tf.float32)
-  self_hand = tf.reshape(self_hand, [-1, 35])
-  net = tf.concat([net, self_hand], axis=1)
+  """
+  if cheat:
+    self_hand = tf.cast(self_hand, tf.float32)
+    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
+    net = tf.concat([net, self_hand], axis=1)
 
+  # main layers (part 1)
   for _ in range(num_layers):
-    net = slim.fully_connected(net, layer_size,
-                               activation_fn=tf.nn.relu)
+    net = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu)
+  """
+  
+  tom_head = None
+  if mode == 'cheat':
+    # concatenate self_hand to net
+    self_hand = tf.cast(self_hand, tf.float32)
+    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
+    net = tf.concat([net, self_hand], axis=1)
+  elif mode == 'tom':
+    # compute tom_head
+    self_hand_pred_shape = list(self_hand_shape) + [2]
+    tom_size = int(np.prod(self_hand_pred_shape))
+    tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
+                              weights_initializer=weights_initializer, scope='tom_head')
+    tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
+    tom_head = tf.nn.softmax(tom_head, axis=-1)
+    
+    # concatenate tom prediction to net
+    tom_pred = tf.stop_gradient(tom_head)[..., 1]
+    tom_pred = tf.reshape(tom_pred, [-1, int(np.prod(self_hand_shape))])
+    net = tf.concat([net, tom_pred], axis=1)
+
+  # main layers (part 2)
+  for _ in range(num_layers):
+    net = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu)
+
+  # finish off the q head
   net = slim.fully_connected(net, num_actions * num_atoms, activation_fn=None,
                              weights_initializer=weights_initializer)
   net = tf.reshape(net, [-1, num_actions, num_atoms])
-  return net
+
+  return net, tom_head
 
 def rainbow_tom_template(state,
                      self_hand,
                      num_actions,
                      self_hand_shape,
+                     cheat,
                      num_atoms=51,
                      layer_size=512,
                      num_layers=1):
@@ -89,9 +122,10 @@ def rainbow_tom_template(state,
 
   net = tf.cast(state, tf.float32)
   net = tf.squeeze(net, axis=2)
-  self_hand = tf.cast(self_hand, tf.float32)
-  self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
-  net = tf.concat([net, self_hand], axis=1)
+  if cheat:
+    self_hand = tf.cast(self_hand, tf.float32)
+    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
+    net = tf.concat([net, self_hand], axis=1)
 
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size,
@@ -120,6 +154,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
                num_players=None,
                self_hand_shape=None,
                tom_lambda=0.,
+               mode='normal',
                num_atoms=51,
                vmax=25.,
                gamma=0.99,
@@ -171,6 +206,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
         num_players=num_players,
         self_hand_shape=self_hand_shape,
         tom_lambda=tom_lambda,
+        mode=mode,
         gamma=gamma,
         update_horizon=update_horizon,
         min_replay_history=min_replay_history,
@@ -257,7 +293,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
     return project_distribution(target_support, next_probabilities,
                                 self.support)
 
-  def _build_train_op(self):
+  def _build_train_op(self, mode):
     """Builds the training op for Rainbow.
 
     Returns:
@@ -276,12 +312,18 @@ class RainbowAgent(dqn_agent.DQNAgent):
         labels=target_distribution,
         logits=chosen_action_logits)
     
-    tom_target = self._replay.self_hands
-    # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
-    tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
-    cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True, reduction=tf.losses.Reduction.NONE)
-    tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
-    loss += self.tom_lambda * tom_loss
+    # """
+    if mode == 'tom':
+      tom_target = self._replay.self_hands
+      # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
+      # no weights for custom3, where there are only 2 classes
+      tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
+      # cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True, reduction=tf.losses.Reduction.NONE)
+      cce = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction=tf.losses.Reduction.NONE)
+      tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
+      # tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom), axis=[1, 2])
+      loss += self.tom_lambda * tom_loss
+    # """
 
     optimizer = tf.train.AdamOptimizer(
         learning_rate=self.learning_rate,

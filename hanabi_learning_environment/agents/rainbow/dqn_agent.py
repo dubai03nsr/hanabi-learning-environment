@@ -120,6 +120,7 @@ class DQNAgent(object):
                num_players=None,
                self_hand_shape=None,
                tom_lambda=0.,
+               mode='normal',
                gamma=0.99,
                update_horizon=1,
                min_replay_history=500,
@@ -186,6 +187,7 @@ class DQNAgent(object):
     self.num_players = num_players
     self.self_hand_shape = self_hand_shape
     self.tom_lambda = tom_lambda
+    self.mode = mode
     self.gamma = gamma
     self.update_horizon = update_horizon
     self.cumulative_gamma = math.pow(gamma, update_horizon)
@@ -205,8 +207,7 @@ class DQNAgent(object):
       # Calling online_convnet will generate a new graph as defined in
       # graph_template using whatever input is passed, but will always share
       # the same weights.
-      online_convnet = tf.make_template('Online', graph_tom_template)
-      # online_convnet = tf.make_template('Online', graph_template)
+      online_convnet = tf.make_template('Online', graph_template)
       target_convnet = tf.make_template('Target', graph_template)
       # The state of the agent. The last axis is the number of past observations
       # that make up the state.
@@ -218,17 +219,12 @@ class DQNAgent(object):
                                              [self.num_actions],
                                              name='legal_actions_ph')
       self._q, _ = online_convnet(
-      # self._q = online_convnet(
-          state=self.state_ph, self_hand=self.self_hand_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape)
-          # state=self.state_ph, num_actions=self.num_actions)
+          state=self.state_ph, self_hand=self.self_hand_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape, mode=self.mode)
       self._replay = self._build_replay_memory(use_staging)
-      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self._replay.self_hands, self.num_actions,
-                                                         self.self_hand_shape)
-      # self._replay_qs = online_convnet(self._replay.states, self.num_actions)
-      # self._replay_next_qt = target_convnet(self._replay.next_states,
-      self._replay_next_qt = target_convnet(self._replay.next_states, self._replay.self_hands,
-                                            self.num_actions)
-      self._train_op = self._build_train_op()
+      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self._replay.self_hands, self.num_actions, self.self_hand_shape, self.mode)
+      self._replay_next_qt, _ = target_convnet(self._replay.next_states, self._replay.next_self_hands,
+                                            self.num_actions, self.self_hand_shape, self.mode)
+      self._train_op = self._build_train_op(mode=self.mode)
       self._sync_qt_ops = self._build_sync_op()
 
       self._q_argmax = tf.argmax(self._q + self.legal_actions_ph, axis=1)[0]
