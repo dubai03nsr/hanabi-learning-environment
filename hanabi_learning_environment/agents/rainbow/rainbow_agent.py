@@ -85,14 +85,19 @@ def rainbow_template(state,
     # compute tom_head
     self_hand_pred_shape = list(self_hand_shape) + [2]
     tom_size = int(np.prod(self_hand_pred_shape))
-    tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
-                              weights_initializer=weights_initializer, scope='tom_head')
+    tom_head = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu,
+                              weights_initializer=weights_initializer)
+    tom_head = slim.fully_connected(tom_head, tom_size, activation_fn=None,
+                                    weights_initializer=weights_initializer)
     tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
     tom_head = tf.nn.softmax(tom_head, axis=-1)
     
     # concatenate tom prediction to net
     tom_pred = tf.stop_gradient(tom_head)[..., 1]
     tom_pred = tf.reshape(tom_pred, [-1, int(np.prod(self_hand_shape))])
+    # print_op = tf.print(tf.reshape(tom_pred, [-1, *self_hand_shape]), summarize=-1)
+    # with tf.control_dependencies([print_op]):
+    #   net = tf.concat([net, tom_pred], axis=1)
     net = tf.concat([net, tom_pred], axis=1)
 
   # main layers (part 2)
@@ -322,7 +327,6 @@ class RainbowAgent(dqn_agent.DQNAgent):
       cce = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction=tf.losses.Reduction.NONE)
       tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
       # tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom), axis=[1, 2])
-      loss += self.tom_lambda * tom_loss
     # """
 
     optimizer = tf.train.AdamOptimizer(
@@ -338,10 +342,16 @@ class RainbowAgent(dqn_agent.DQNAgent):
     target_priorities /= tf.reduce_max(target_priorities)
 
     weighted_loss = target_priorities * loss
-      
-    with tf.control_dependencies([update_priorities_op]):
-      return optimizer.minimize(tf.reduce_mean(weighted_loss)), weighted_loss
 
+    with tf.control_dependencies([update_priorities_op]):
+      if mode == 'tom':
+        # print_op = tf.print(tom_loss, self._replay_tom, summarize=-1)
+        # with tf.control_dependencies([print_op]):
+        train_op_q = optimizer.minimize(tf.reduce_mean(weighted_loss))
+        train_op_tom = optimizer.minimize(tf.reduce_mean(tom_loss))
+        return tf.group(train_op_q, train_op_tom), weighted_loss
+      else:
+        return optimizer.minimize(tf.reduce_mean(weighted_loss)), weighted_loss
 
 def project_distribution(supports, weights, target_support,
                          validate_args=False):

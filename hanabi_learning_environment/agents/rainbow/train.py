@@ -101,7 +101,8 @@ def launch_experiment():
                                 experiment_logger, experiment_checkpointer,
                                 checkpoint_dir,
                                 logging_file_prefix=FLAGS.logging_file_prefix,
-                                num_iterations=FLAGS.num_iterations)
+                                num_iterations=FLAGS.num_iterations,
+                                checkpoint_every_n=FLAGS.num_iterations-1)
 
 
 def main(unused_argv):

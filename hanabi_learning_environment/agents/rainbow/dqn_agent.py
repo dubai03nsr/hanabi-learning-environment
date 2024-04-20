@@ -218,7 +218,7 @@ class DQNAgent(object):
       self.legal_actions_ph = tf.placeholder(tf.float32,
                                              [self.num_actions],
                                              name='legal_actions_ph')
-      self._q, _ = online_convnet(
+      self._q, self._q_tom = online_convnet(
           state=self.state_ph, self_hand=self.self_hand_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape, mode=self.mode)
       self._replay = self._build_replay_memory(use_staging)
       self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self._replay.self_hands, self.num_actions, self.self_hand_shape, self.mode)
