@@ -13,10 +13,9 @@ dire = 'rainbow_results/'
 # for fname in os.listdir(dire):
 # for fname in ['small-cheat.txt', 'small.txt']:
 # for fname in ['custom.txt', 'custom-cheat.txt', 'custom-cheat-next.txt']:
-for fname in ['full-cheat.txt', 'full.txt', 'full-tom1-1e-4.txt', 'full-tom1-1e-3.txt', 'full-cheat1.txt', 'full-tom-1e-4-ckpt.txt', 'full-tom-sep-ckpt.txt']:
+for fname in ['full-cheat.txt', 'full.txt', 'full-tom1-1e-4.txt', 'full-tom1-1e-3.txt', 'full-cheat1.txt', 'full-tom-1e-4-ckpt.txt', 'full-tom-sep-ckpt.txt', 'full-tom-cel.txt', 'full-tom-cel-ckpt-filt.txt']:
 # for fname in ['full-cheat.txt', 'full-tom.txt', 'full.txt']:
-    with open(dire + fname if fname != 'full-tom-sep-ckpt.txt' else fname) as f:
-    # with open(fname) as f:
+    with open(dire + fname) as f:
         if not fname.endswith('.txt'): continue
 
         returns = []

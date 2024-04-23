@@ -38,7 +38,7 @@ import tensorflow as tf
 slim = tf.contrib.slim
 
 Transition = collections.namedtuple(
-    'Transition', ['reward', 'observation', 'legal_actions', 'action', 'self_hand', 'begin'])
+    'Transition', ['reward', 'observation', 'legal_actions', 'action', 'self_hand', 'tom1_hand', 'begin'])
 
 
 def linearly_decaying_epsilon(decay_period, step, warmup_steps, epsilon):
@@ -100,7 +100,6 @@ def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_la
   
   self_hand_pred_shape = list(self_hand_shape) + [2]
   tom_size = int(np.prod(self_hand_pred_shape))
-  print('self_hand_pred_shape:', self_hand_pred_shape, 'tom_size:', tom_size)
   tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
                              weights_initializer=weights_initializer, scope='tom_head')
   tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
@@ -218,11 +217,12 @@ class DQNAgent(object):
       self.legal_actions_ph = tf.placeholder(tf.float32,
                                              [self.num_actions],
                                              name='legal_actions_ph')
-      self._q, self._q_tom = online_convnet(
-          state=self.state_ph, self_hand=self.self_hand_ph, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape, mode=self.mode)
+      tom1_player_offset = tf.ones([1, 1], dtype=tf.uint8)
+      self._q, self._q_tom0, _ = online_convnet(
+          state=self.state_ph, self_hand=self.self_hand_ph, tom1_player_offset=tom1_player_offset, num_actions=self.num_actions, self_hand_shape=self.self_hand_shape, mode=self.mode)
       self._replay = self._build_replay_memory(use_staging)
-      self._replay_qs, self._replay_tom = online_convnet(self._replay.states, self._replay.self_hands, self.num_actions, self.self_hand_shape, self.mode)
-      self._replay_next_qt, _ = target_convnet(self._replay.next_states, self._replay.next_self_hands,
+      self._replay_qs, self._replay_tom0, self._replay_tom1 = online_convnet(self._replay.states, self._replay.self_hands, self._replay.tom1_player_offsets, self.num_actions, self.self_hand_shape, self.mode)
+      self._replay_next_qt, _, _ = target_convnet(self._replay.next_states, self._replay.next_self_hands, self._replay.tom1_player_offsets,
                                             self.num_actions, self.self_hand_shape, self.mode)
       self._train_op = self._build_train_op(mode=self.mode)
       self._sync_qt_ops = self._build_sync_op()
@@ -327,7 +327,7 @@ class DQNAgent(object):
       sync_qt_ops.append(w_target.assign(w_online, use_locking=True))
     return sync_qt_ops
 
-  def begin_episode(self, current_player, legal_actions, observation, self_hand):
+  def begin_episode(self, current_player, legal_actions, observation, self_hand, tom1_hand):
     """Returns the agent's first action.
 
     Args:
@@ -340,12 +340,12 @@ class DQNAgent(object):
     """
     self._train_step()
 
-    self.action = self._select_action(observation, legal_actions, self_hand)
+    self.action, self.tom0 = self._select_action(observation, legal_actions, self_hand)
     self._record_transition(current_player, 0, observation, legal_actions,
-                            self.action, self_hand, begin=True)
-    return self.action
+                            self.action, self_hand, tom1_hand, begin=True)
+    return self.action, self.tom0
 
-  def step(self, reward, current_player, legal_actions, observation, self_hand):
+  def step(self, reward, current_player, legal_actions, observation, self_hand, tom1_hand):
     """Stores observations from last transition and chooses a new action.
 
     Notifies the agent of the outcome of the latest transition and stores it
@@ -362,10 +362,10 @@ class DQNAgent(object):
     """
     self._train_step()
 
-    self.action = self._select_action(observation, legal_actions, self_hand)
+    self.action, self.tom0 = self._select_action(observation, legal_actions, self_hand)
     self._record_transition(current_player, reward, observation, legal_actions,
-                            self.action, self_hand)
-    return self.action
+                            self.action, self_hand, tom1_hand)
+    return self.action, self.tom0
 
   def end_episode(self, final_rewards):
     """Signals the end of the episode to the agent.
@@ -378,7 +378,7 @@ class DQNAgent(object):
     self._post_transitions(terminal_rewards=final_rewards)
 
   def _record_transition(self, current_player, reward, observation,
-                         legal_actions, action, self_hand, begin=False):
+                         legal_actions, action, self_hand, tom1_hand, begin=False):
     """Records the most recent transition data.
 
     Specifically, the data consists of (r_t, o_{t+1}, l_{t+1}, a_{t+1}), where
@@ -398,7 +398,8 @@ class DQNAgent(object):
     self.transitions[current_player].append(
         Transition(reward, np.array(observation, dtype=np.uint8, copy=True),
                    np.array(legal_actions, dtype=np.float32, copy=True), action,
-                   np.array(self_hand, dtype=np.uint8, copy=True), begin))
+                   np.array(self_hand, dtype=np.uint8, copy=True),
+                   np.array(tom1_hand, dtype=np.float32, copy=True), begin))
 
   def _post_transitions(self, terminal_rewards):
     """Posts this episode to the replay memory.
@@ -422,7 +423,8 @@ class DQNAgent(object):
 
         self._store_transition(transition.observation, transition.action,
                                reward, final_transition,
-                               transition.legal_actions, transition.self_hand)
+                               transition.legal_actions, transition.self_hand,
+                               transition.tom1_hand)
 
       # Now that this episode has been stored, drop it from the transitions
       # buffer.
@@ -451,18 +453,19 @@ class DQNAgent(object):
     if random.random() <= epsilon:
       # Choose a random action with probability epsilon.
       legal_action_indices = np.where(legal_actions == 0.0)
-      return np.random.choice(legal_action_indices[0])
+      tom0 = np.zeros(self.self_hand_shape) # out of convenience, don't use this as a tom1 target (loss 0)
+      return np.random.choice(legal_action_indices[0]), tom0
     else:
       # Convert observation into a batch-based format.
       self.state[0, :, 0] = observation
 
       # Choose the action maximizing the q function for the current state.
-      action = self._sess.run(self._q_argmax,
+      action, tom0 = self._sess.run([self._q_argmax, self._q_tom0[0]],
                               {self.state_ph: self.state,
                                self.self_hand_ph: self_hand,
                                self.legal_actions_ph: legal_actions})
       assert legal_actions[action] == 0.0, 'Expected legal action.'
-      return action
+      return action, tom0
 
   def _train_step(self):
     """Runs a single training step.
@@ -491,7 +494,7 @@ class DQNAgent(object):
     self.training_steps += 1
 
   def _store_transition(self, observation, action, reward, is_terminal,
-                        legal_actions, self_hand):
+                        legal_actions, self_hand, tom1_hand):
     """Stores a transition during training mode.
 
     Executes a tf session and executes replay memory ops in order to store the
@@ -513,7 +516,8 @@ class DQNAgent(object):
               self._replay.add_reward_ph: reward,
               self._replay.add_terminal_ph: is_terminal,
               self._replay.add_legal_actions_ph: legal_actions,
-              self._replay.add_self_hand_ph: self_hand
+              self._replay.add_self_hand_ph: self_hand,
+              self._replay.add_tom1_hand_ph: tom1_hand
           })
 
   def bundle_and_checkpoint(self, checkpoint_dir, iteration_number):

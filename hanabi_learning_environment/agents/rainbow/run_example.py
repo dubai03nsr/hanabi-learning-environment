@@ -22,7 +22,7 @@ flags.DEFINE_multi_string(
     'Gin bindings to override the values set in the config files '
     '(e.g. "DQNAgent.epsilon_train=0.1").')
 
-flags.DEFINE_string('base_dir', 'results_sep',
+flags.DEFINE_string('base_dir', 'results_cel',
                     'Base directory to host all required sub-directories.')
 
 flags.DEFINE_string('checkpoint_dir', '',
@@ -62,15 +62,15 @@ def launch_experiment():
                                                 checkpoint_dir,
                                                 FLAGS.checkpoint_file_prefix))
 
-    run_experiment.run_experiment(agent, environment, start_iteration,
-                                obs_stacker,
-                                experiment_logger, experiment_checkpointer,
-                                checkpoint_dir,
-                                logging_file_prefix=FLAGS.logging_file_prefix,
-                                num_iterations=1001,
-                                training_steps=1)
+    # run_experiment.run_experiment(agent, environment, start_iteration,
+    #                             obs_stacker,
+    #                             experiment_logger, experiment_checkpointer,
+    #                             checkpoint_dir,
+    #                             logging_file_prefix=FLAGS.logging_file_prefix,
+    #                             num_iterations=1001,
+    #                             training_steps=1)
 
-    # run_experiment.run_one_episode_debug(agent, environment, obs_stacker)
+    run_experiment.run_one_episode_debug(agent, environment, obs_stacker)
 
 def main(unused_argv):
   launch_experiment()

@@ -42,7 +42,7 @@ flags.DEFINE_multi_string(
     'Gin bindings to override the values set in the config files '
     '(e.g. "DQNAgent.epsilon_train=0.1").')
 
-flags.DEFINE_string('base_dir', 'results',
+flags.DEFINE_string('base_dir', 'results_tom1',
                     'Base directory to host all required sub-directories.')
 
 flags.DEFINE_string('checkpoint_dir', '',
@@ -63,7 +63,7 @@ flags.DEFINE_integer('num_iterations', 1000,
 flags.DEFINE_float('tom_lambda', 0.,
                    'weight for ToM objective', lower_bound=0.)
 flags.DEFINE_string('mode', "normal",
-                     '"cheat", "tom" or "normal"')
+                     '"cheat", "tom0", "tom1", or "normal"')
 
 def launch_experiment():
   """Launches the experiment.

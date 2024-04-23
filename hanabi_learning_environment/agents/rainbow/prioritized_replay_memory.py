@@ -65,7 +65,7 @@ class OutOfGraphPrioritizedReplayMemory(replay_memory.OutOfGraphReplayMemory):
 
     self.sum_tree = sum_tree.SumTree(replay_capacity)
 
-  def add(self, observation, action, reward, terminal, legal_actions, self_hand):
+  def add(self, observation, action, reward, terminal, legal_actions, self_hand, tom1_hand):
     """Adds a transition to the replay memory.
 
     Since the next_observation in the transition will be the observation added
@@ -88,18 +88,19 @@ class OutOfGraphPrioritizedReplayMemory(replay_memory.OutOfGraphReplayMemory):
       dummy_observation = np.zeros((self._observation_size))
       dummy_legal_actions = np.zeros((self._num_actions))
       dummy_self_hand = np.zeros(self._self_hand_shape)
+      dummy_tom1_hand = np.zeros(self._self_hand_shape, dtype=np.float32)
       for _ in range(self._stack_size - 1):
-        self._add(dummy_observation, 0, 0, 0, dummy_legal_actions, dummy_self_hand, priority=0.0)
+        self._add(dummy_observation, 0, 0, 0, dummy_legal_actions, dummy_self_hand, dummy_tom1_hand, priority=0.0)
 
-    self._add(observation, action, reward, terminal, legal_actions, self_hand,
+    self._add(observation, action, reward, terminal, legal_actions, self_hand, tom1_hand,
               priority=DEFAULT_PRIORITY)
 
-  def _add(self, observation, action, reward, terminal, legal_actions, self_hand,
+  def _add(self, observation, action, reward, terminal, legal_actions, self_hand, tom1_hand,
            priority=DEFAULT_PRIORITY):
     new_element_index = self.cursor()
 
     super(OutOfGraphPrioritizedReplayMemory, self)._add(
-        observation, action, reward, terminal, legal_actions, self_hand)
+        observation, action, reward, terminal, legal_actions, self_hand, tom1_hand)
 
     self.sum_tree.set(new_element_index, priority)
 

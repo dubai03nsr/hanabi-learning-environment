@@ -31,7 +31,7 @@ import gin.tf
 import numpy as np
 import prioritized_replay_memory
 import tensorflow as tf
-
+import sys
 
 slim = tf.contrib.slim
 
@@ -39,6 +39,7 @@ slim = tf.contrib.slim
 @gin.configurable
 def rainbow_template(state,
                      self_hand,
+                     tom1_player_offset,
                      num_actions,
                      self_hand_shape,
                      mode,
@@ -62,8 +63,8 @@ def rainbow_template(state,
   weights_initializer = slim.variance_scaling_initializer(
       factor=1.0 / np.sqrt(3.0), mode='FAN_IN', uniform=True)
 
-  net = tf.cast(state, tf.float32)
-  net = tf.squeeze(net, axis=2)
+  state = tf.cast(state, tf.float32)
+  state = tf.squeeze(state, axis=2)
   """
   if cheat:
     self_hand = tf.cast(self_hand, tf.float32)
@@ -75,41 +76,88 @@ def rainbow_template(state,
     net = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu)
   """
   
-  tom_head = None
+  """
+  # tom0_head, tom1_head = tf.zeros((state.get_shape().as_list()[0], *self_hand_shape)), tf.zeros((state.get_shape().as_list()[0], *self_hand_shape))
   if mode == 'cheat':
-    # concatenate self_hand to net
+    # concatenate self_hand to state
     self_hand = tf.cast(self_hand, tf.float32)
     self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
-    net = tf.concat([net, self_hand], axis=1)
-  elif mode == 'tom':
-    # compute tom_head
-    self_hand_pred_shape = list(self_hand_shape) + [2]
-    tom_size = int(np.prod(self_hand_pred_shape))
-    tom_head = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu,
+    net = tf.concat([state, self_hand], axis=1)
+  elif mode in ['tom0', 'tom1']:
+    # compute tom0_head
+    tom_size = int(np.prod(self_hand_shape))
+    tom0_head = slim.fully_connected(state, layer_size, activation_fn=tf.nn.relu,
                               weights_initializer=weights_initializer)
-    tom_head = slim.fully_connected(tom_head, tom_size, activation_fn=None,
+    tom0_head = slim.fully_connected(tom0_head, tom_size, activation_fn=None,
                                     weights_initializer=weights_initializer)
-    tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
-    tom_head = tf.nn.softmax(tom_head, axis=-1)
+    tom0_head = tf.reshape(tom0_head, [-1, *self_hand_shape])
+    tom0_head = tf.nn.softmax(tom0_head, axis=-1)
     
-    # concatenate tom prediction to net
-    tom_pred = tf.stop_gradient(tom_head)[..., 1]
-    tom_pred = tf.reshape(tom_pred, [-1, int(np.prod(self_hand_shape))])
-    # print_op = tf.print(tf.reshape(tom_pred, [-1, *self_hand_shape]), summarize=-1)
-    # with tf.control_dependencies([print_op]):
-    #   net = tf.concat([net, tom_pred], axis=1)
-    net = tf.concat([net, tom_pred], axis=1)
+    # concatenate tom prediction to state
+    tom0_pred = tf.stop_gradient(tom0_head)
+    tom0_pred = tf.reshape(tom0_pred, [-1, tom_size])
+    net = tf.concat([state, tom0_pred], axis=1)
+
+    if mode == 'tom1': # compute tom1_head
+      tom1_player_offset = tf.cast(tom1_player_offset, tf.float32)
+      state_tom1 = tf.concat([state, tom1_player_offset], axis=1)
+      tom1_head = slim.fully_connected(state_tom1, layer_size, activation_fn=tf.nn.relu,
+                                weights_initializer=weights_initializer)
+      tom1_head = slim.fully_connected(tom1_head, tom_size, activation_fn=None,
+                                      weights_initializer=weights_initializer)
+      tom1_head = tf.reshape(tom1_head, [-1, *self_hand_shape])
+      tom1_head = tf.nn.softmax(tom1_head, axis=-1)
+  else: # mode='normal'
+    net = state
+  """
+
+  # compute tom0_head
+  tom_size = int(np.prod(self_hand_shape))
+  tom0_head = slim.fully_connected(state, layer_size, activation_fn=tf.nn.relu,
+                            weights_initializer=weights_initializer)
+  tom0_head = slim.fully_connected(tom0_head, tom_size, activation_fn=None,
+                                  weights_initializer=weights_initializer)
+  tom0_head = tf.reshape(tom0_head, [-1, *self_hand_shape])
+  tom0_head = tf.nn.softmax(tom0_head, axis=-1)
+
+  # compute tom1_head
+  tom1_player_offset = tf.cast(tom1_player_offset, tf.float32)
+  state_tom1 = tf.concat([state, tom1_player_offset], axis=1)
+  tom1_head = slim.fully_connected(state_tom1, layer_size, activation_fn=tf.nn.relu,
+                            weights_initializer=weights_initializer)
+  tom1_head = slim.fully_connected(tom1_head, tom_size, activation_fn=None,
+                                  weights_initializer=weights_initializer)
+  tom1_head = tf.reshape(tom1_head, [-1, *self_hand_shape])
+  tom1_head = tf.nn.softmax(tom1_head, axis=-1)
+
+  if mode == 'cheat':
+    # concatenate self_hand to state
+    self_hand = tf.cast(self_hand, tf.float32)
+    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
+    net = tf.concat([state, self_hand], axis=1)
+  elif mode in ['tom0', 'tom1']:
+    tom0_pred = tf.stop_gradient(tom0_head)
+    tom0_pred = tf.reshape(tom0_pred, [-1, tom_size])
+
+    if mode == 'tom0':
+      net = tf.concat([state, tom0_pred], axis=1)
+    else: # mode='tom1'
+      tom1_pred = tf.stop_gradient(tom1_head)
+      tom1_pred = tf.reshape(tom1_pred, [-1, tom_size])
+      net = tf.concat([state, tom0_pred, tom1_pred], axis=1)
+  else:  #mode='normal'
+    net = state
 
   # main layers (part 2)
   for _ in range(num_layers):
     net = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu)
 
-  # finish off the q head
+  # q head
   net = slim.fully_connected(net, num_actions * num_atoms, activation_fn=None,
                              weights_initializer=weights_initializer)
   net = tf.reshape(net, [-1, num_actions, num_atoms])
 
-  return net, tom_head
+  return net, tom0_head, tom1_head
 
 def rainbow_tom_template(state,
                      self_hand,
@@ -141,7 +189,6 @@ def rainbow_tom_template(state,
 
   self_hand_pred_shape = list(self_hand_shape) + [2]
   tom_size = int(np.prod(self_hand_pred_shape))
-  # print('self_hand_pred_shape:', self_hand_pred_shape, 'tom_size:', tom_size)
   tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
                              weights_initializer=weights_initializer, scope='tom_head')
   tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
@@ -316,18 +363,6 @@ class RainbowAgent(dqn_agent.DQNAgent):
     loss = tf.nn.softmax_cross_entropy_with_logits(
         labels=target_distribution,
         logits=chosen_action_logits)
-    
-    # """
-    if mode == 'tom':
-      tom_target = self._replay.self_hands
-      # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
-      # no weights for custom3, where there are only 2 classes
-      tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
-      # cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True, reduction=tf.losses.Reduction.NONE)
-      cce = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction=tf.losses.Reduction.NONE)
-      tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
-      # tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom), axis=[1, 2])
-    # """
 
     optimizer = tf.train.AdamOptimizer(
         learning_rate=self.learning_rate,
@@ -342,14 +377,24 @@ class RainbowAgent(dqn_agent.DQNAgent):
     target_priorities /= tf.reduce_max(target_priorities)
 
     weighted_loss = target_priorities * loss
+    if mode in ['tom0', 'tom1']:
+      cce = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction=tf.losses.Reduction.NONE)
+
+      tom0_loss = tf.reduce_mean(cce(self._replay.self_hands, self._replay_tom0), axis=[1, 2])
+      weighted_tom0_loss = target_priorities * tom0_loss
+      if mode == 'tom1':
+        tom1_loss = tf.reduce_mean(cce(self._replay.tom1_hands, self._replay_tom1), axis=[1, 2])
+        weighted_tom1_loss = target_priorities * tom1_loss
 
     with tf.control_dependencies([update_priorities_op]):
-      if mode == 'tom':
-        # print_op = tf.print(tom_loss, self._replay_tom, summarize=-1)
-        # with tf.control_dependencies([print_op]):
+      if mode in ['tom0', 'tom1']:
         train_op_q = optimizer.minimize(tf.reduce_mean(weighted_loss))
-        train_op_tom = optimizer.minimize(tf.reduce_mean(tom_loss))
-        return tf.group(train_op_q, train_op_tom), weighted_loss
+        train_op_tom0 = optimizer.minimize(tf.reduce_mean(weighted_tom0_loss))
+        if mode == 'tom0':
+          return tf.group(train_op_q, train_op_tom0), weighted_loss
+        else: # mode='tom1'
+          train_op_tom1 = optimizer.minimize(tf.reduce_mean(weighted_tom1_loss))
+          return tf.group(train_op_q, train_op_tom0, train_op_tom1), weighted_loss
       else:
         return optimizer.minimize(tf.reduce_mean(weighted_loss)), weighted_loss
 

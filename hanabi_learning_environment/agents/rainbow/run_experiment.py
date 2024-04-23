@@ -288,15 +288,14 @@ def parse_observations(observations, env, obs_stacker):
   observation_vector = obs_stacker.get_observation_stack(current_player)
 
   self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
-  self_hand = np.zeros(env.self_hand_shape()) # binary for each (card_i, [color or rank]). 1=yes, 0=no
+  self_hand = np.zeros(env.self_hand_shape())
   n_card = len(self_hand_str) // 2
-  n_color = env.game.num_colors()
   for card_i in range(n_card):
     color, rank = self_hand_str[2 * card_i], self_hand_str[2 * card_i + 1]
     color, rank = 'RYGWB'.index(color), '12345'.index(rank)
-    assert(color < n_color)
-    self_hand[card_i, color] = 1
-    self_hand[card_i, n_color + rank] = 1
+    self_hand[card_i, 0, color] = 1
+    self_hand[card_i, 1, rank] = 1
+  # self_hand = tf.convert_to_tensor(self_hand)
 
   return current_player, legal_moves, observation_vector, self_hand
 
@@ -317,7 +316,10 @@ def run_one_episode(agent, environment, obs_stacker):
   observations = environment.reset()
   current_player, legal_moves, observation_vector, self_hand = (
       parse_observations(observations, environment, obs_stacker))
-  action = agent.begin_episode(current_player, legal_moves, observation_vector, self_hand)
+  # null hand to predict before 1st move; all 0s will lead cel to be 0
+  tom1_hand = np.zeros(environment.self_hand_shape())
+  # every time make move, assign tom1_hand <- tom0, so everyone predicts the previous guy's tom0
+  action, tom1_hand = agent.begin_episode(current_player, legal_moves, observation_vector, self_hand, tom1_hand)
 
   is_done = False
   total_reward = 0
@@ -342,13 +344,13 @@ def run_one_episode(agent, environment, obs_stacker):
     current_player, legal_moves, observation_vector, self_hand = (
         parse_observations(observations, environment, obs_stacker))
     if current_player in has_played:
-      action = agent.step(reward_since_last_action[current_player],
-                          current_player, legal_moves, observation_vector, self_hand)
+      action, tom1_hand = agent.step(reward_since_last_action[current_player],
+                          current_player, legal_moves, observation_vector, self_hand, tom1_hand)
     else:
       # Each player begins the episode on their first turn (which may not be
       # the first move of the game).
-      action = agent.begin_episode(current_player, legal_moves,
-                                   observation_vector, self_hand)
+      action, tom1_hand = agent.begin_episode(current_player, legal_moves,
+                                   observation_vector, self_hand, tom1_hand)
       has_played.add(current_player)
 
     # Reset this player's reward accumulator.
@@ -384,8 +386,8 @@ def run_one_episode_debug(agent, environment, obs_stacker):
 
   # print tom
   print('action', environment.game.get_move(action).to_dict())
-  tom_pred = tf.stop_gradient(agent._q_tom)[..., 1]
-  tom_pred = tf.reshape(tom_pred, [-1, *agent.self_hand_shape])
+  # tom_pred = tf.stop_gradient(agent._q_tom)
+  # tom_pred = tf.reshape(tom_pred, [-1, *agent.self_hand_shape])
   self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
   print('self_hand', self_hand_str)
   right_hand_str = observations['player_observations'][current_player]['pyhanabi'].right_hand_string()
@@ -427,8 +429,8 @@ def run_one_episode_debug(agent, environment, obs_stacker):
       # print tom
       # print('action', environment.game.get_move(action).to_dict())
       f.write('action {}\n'.format(environment.game.get_move(action).to_dict()))
-      tom_pred = tf.stop_gradient(agent._q_tom)[..., 1]
-      tom_pred = tf.reshape(tom_pred, [-1, *agent.self_hand_shape])
+      # tom_pred = tf.stop_gradient(agent._q_tom)[..., 1]
+      # tom_pred = tf.reshape(tom_pred, [-1, *agent.self_hand_shape])
       self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
       # print('self_hand', self_hand_str)
       f.write('self_hand {}\n'.format(self_hand_str))
@@ -612,9 +614,9 @@ def run_experiment(agent,
                    logging_file_prefix, log_every_n)
     tf.logging.info('Logging iteration %d took %d seconds', iteration,
                     time.time() - start_time)
+    """
     start_time = time.time()
     checkpoint_experiment(experiment_checkpointer, agent, experiment_logger,
                           iteration, checkpoint_dir, checkpoint_every_n)
     tf.logging.info('Checkpointing iteration %d took %d seconds', iteration,
                     time.time() - start_time)
-    """
