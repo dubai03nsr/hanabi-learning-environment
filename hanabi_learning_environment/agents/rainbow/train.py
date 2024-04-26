@@ -42,7 +42,7 @@ flags.DEFINE_multi_string(
     'Gin bindings to override the values set in the config files '
     '(e.g. "DQNAgent.epsilon_train=0.1").')
 
-flags.DEFINE_string('base_dir', 'results_tom1',
+flags.DEFINE_string('base_dir', None,
                     'Base directory to host all required sub-directories.')
 
 flags.DEFINE_string('checkpoint_dir', '',
@@ -60,8 +60,6 @@ flags.DEFINE_integer('history_size', 2,
                     'Number of time steps to stack in the observation.', lower_bound=1)
 flags.DEFINE_integer('num_iterations', 1000,
                     'Number of training iterations', lower_bound=1)
-flags.DEFINE_float('tom_lambda', 0.,
-                   'weight for ToM objective', lower_bound=0.)
 flags.DEFINE_string('mode', "normal",
                      '"cheat", "tom0", "tom1", or "normal"')
 
@@ -87,7 +85,7 @@ def launch_experiment():
 
   environment = run_experiment.create_environment(game_type='Hanabi-Full', num_players=2)
   obs_stacker = run_experiment.create_obs_stacker(environment, history_size=FLAGS.history_size)
-  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow', tom_lambda=FLAGS.tom_lambda, mode=FLAGS.mode)
+  agent = run_experiment.create_agent(environment, obs_stacker, agent_type='Rainbow', mode=FLAGS.mode)
 
   checkpoint_dir = '{}/checkpoints'.format(FLAGS.base_dir)
   start_iteration, experiment_checkpointer = (

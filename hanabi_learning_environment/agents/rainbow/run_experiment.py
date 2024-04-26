@@ -148,8 +148,7 @@ def create_obs_stacker(environment, history_size=4):
 
 
 @gin.configurable
-def create_agent(environment, obs_stacker, agent_type='DQN', tom_lambda=0., mode='normal'):
-  print('tom_lambda', tom_lambda)
+def create_agent(environment, obs_stacker, agent_type='DQN', mode='normal'):
   print('mode', mode)
   """Creates the Hanabi agent.
 
@@ -169,7 +168,6 @@ def create_agent(environment, obs_stacker, agent_type='DQN', tom_lambda=0., mode
                               num_actions=environment.num_moves(),
                               num_players=environment.players,
                               self_hand_shape=environment.self_hand_shape(),
-                              tom_lambda=tom_lambda,
                               mode=mode,
                               tf_device='/gpu:0')
   elif agent_type == 'Rainbow':
@@ -178,7 +176,6 @@ def create_agent(environment, obs_stacker, agent_type='DQN', tom_lambda=0., mode
         num_actions=environment.num_moves(),
         num_players=environment.players,
         self_hand_shape=environment.self_hand_shape(),
-        tom_lambda=tom_lambda,
         mode=mode,
         tf_device='/gpu:0')
   else:
@@ -360,90 +357,6 @@ def run_one_episode(agent, environment, obs_stacker):
 
   tf.logging.info('EPISODE: %d %g', step_number, total_reward)
   return step_number, total_reward
-
-# def print_tensor(tensor):
-#     with tf.Session() as sess:
-#       print(tensor.eval(session=sess))
-
-def run_one_episode_debug(agent, environment, obs_stacker):
-  print('run_one_episode_debug')
-  """Runs the agent on a single game of Hanabi in self-play mode.
-
-  Args:
-    agent: Agent playing Hanabi.
-    environment: The Hanabi environment.
-    obs_stacker: Observation stacker object.
-
-  Returns:
-    step_number: int, number of actions in this episode.
-    total_reward: float, undiscounted return for this episode.
-  """
-  obs_stacker.reset_stack()
-  observations = environment.reset()
-  current_player, legal_moves, observation_vector, self_hand = (
-      parse_observations(observations, environment, obs_stacker))
-  action = agent.begin_episode(current_player, legal_moves, observation_vector, self_hand)
-
-  # print tom
-  print('action', environment.game.get_move(action).to_dict())
-  # tom_pred = tf.stop_gradient(agent._q_tom)
-  # tom_pred = tf.reshape(tom_pred, [-1, *agent.self_hand_shape])
-  self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
-  print('self_hand', self_hand_str)
-  right_hand_str = observations['player_observations'][current_player]['pyhanabi'].right_hand_string()
-  print('right_hand', right_hand_str)
-
-  is_done = False
-  total_reward = 0
-  step_number = 0
-
-  has_played = {current_player}
-
-  # Keep track of per-player reward.
-  reward_since_last_action = np.zeros(environment.players)
-
-  with open('debug2.txt', 'w') as f:
-    while not is_done:
-      observations, reward, is_done, _ = environment.step(action.item())
-
-      modified_reward = max(reward, 0) if LENIENT_SCORE else reward
-      total_reward += modified_reward
-
-      reward_since_last_action += modified_reward
-
-      step_number += 1
-      if is_done:
-        break
-      current_player, legal_moves, observation_vector, self_hand = (
-          parse_observations(observations, environment, obs_stacker))
-      if current_player in has_played:
-        action = agent.step(reward_since_last_action[current_player],
-                            current_player, legal_moves, observation_vector, self_hand)
-      else:
-        # Each player begins the episode on their first turn (which may not be
-        # the first move of the game).
-        action = agent.begin_episode(current_player, legal_moves,
-                                    observation_vector, self_hand)
-        has_played.add(current_player)
-
-      # print tom
-      # print('action', environment.game.get_move(action).to_dict())
-      f.write('action {}\n'.format(environment.game.get_move(action).to_dict()))
-      # tom_pred = tf.stop_gradient(agent._q_tom)[..., 1]
-      # tom_pred = tf.reshape(tom_pred, [-1, *agent.self_hand_shape])
-      self_hand_str = observations['player_observations'][current_player - 1]['pyhanabi'].right_hand_string()
-      # print('self_hand', self_hand_str)
-      f.write('self_hand {}\n'.format(self_hand_str))
-      right_hand_str = observations['player_observations'][current_player]['pyhanabi'].right_hand_string()
-      # print('right_hand', right_hand_str)
-      f.write('right_hand {}\n'.format(right_hand_str))
-
-      # Reset this player's reward accumulator.
-      reward_since_last_action[current_player] = 0
-
-  agent.end_episode(reward_since_last_action)
-
-  tf.logging.info('EPISODE: %d %g', step_number, total_reward)
 
 def run_one_phase(agent, environment, obs_stacker, min_steps, statistics,
                   run_mode_str):

@@ -84,30 +84,6 @@ def dqn_template(state, num_actions, layer_size=512, num_layers=1):
                              weights_initializer=weights_initializer)
   return net
 
-def dqn_tom_template(state, num_actions, self_hand_shape, layer_size=512, num_layers=1):
-  r"""dqn_template but with a second head for predicting self hand
-  """
-  weights_initializer = slim.variance_scaling_initializer(
-      factor=1.0 / np.sqrt(3.0), mode='FAN_IN', uniform=True)
-
-  net = tf.cast(state, tf.float32)
-  net = tf.squeeze(net, axis=2)
-  for _ in range(num_layers):
-    net = slim.fully_connected(net, layer_size,
-                               activation_fn=tf.nn.relu)
-  dqn_head = slim.fully_connected(net, num_actions, activation_fn=None,
-                             weights_initializer=weights_initializer)
-  
-  self_hand_pred_shape = list(self_hand_shape) + [2]
-  tom_size = int(np.prod(self_hand_pred_shape))
-  tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
-                             weights_initializer=weights_initializer, scope='tom_head')
-  tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
-  # softmax tom_head along last dimension
-  # tom_head = tf.nn.softmax(tom_head, axis=-1)
-  return dqn_head, tom_head
-  # return dqn_head
-
 @gin.configurable
 class DQNAgent(object):
   """A compact implementation of the multiplayer DQN agent."""
@@ -118,7 +94,6 @@ class DQNAgent(object):
                observation_size=None,
                num_players=None,
                self_hand_shape=None,
-               tom_lambda=0.,
                mode='normal',
                gamma=0.99,
                update_horizon=1,
@@ -131,7 +106,6 @@ class DQNAgent(object):
                epsilon_eval=0.001,
                epsilon_decay_period=1000,
                graph_template=dqn_template,
-               graph_tom_template=dqn_tom_template,
                tf_device='/cpu:*',
                use_staging=True,
                optimizer=tf.train.RMSPropOptimizer(
@@ -185,7 +159,6 @@ class DQNAgent(object):
     self.observation_size = observation_size
     self.num_players = num_players
     self.self_hand_shape = self_hand_shape
-    self.tom_lambda = tom_lambda
     self.mode = mode
     self.gamma = gamma
     self.update_horizon = update_horizon
@@ -295,14 +268,6 @@ class DQNAgent(object):
     target = tf.stop_gradient(self._build_target_q_op())
     loss = tf.losses.huber_loss(
         target, replay_chosen_q, reduction=tf.losses.Reduction.NONE)
-    
-    tom_target = self._replay.self_hands
-    # set tom_weights to be 1 if the label is 1, 0.2 if the label is 0
-    tom_weights = tf.where(tf.equal(tom_target, 1), tf.ones_like(tom_target, dtype=tf.float32), 0.2 * tf.ones_like(tom_target, dtype=tf.float32))
-    cce = tf.keras.losses.CategoricalCrossentropy(from_logits=True, reduction=tf.losses.Reduction.NONE)
-    tom_loss = tf.reduce_mean(cce(tf.expand_dims(tom_target, axis=-1), self._replay_tom, sample_weight=tom_weights), axis=[1, 2])
-    loss += self.tom_lambda * tom_loss
-
     return self.optimizer.minimize(tf.reduce_mean(loss))
 
   def _build_sync_op(self):

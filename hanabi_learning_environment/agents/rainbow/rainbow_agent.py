@@ -65,51 +65,6 @@ def rainbow_template(state,
 
   state = tf.cast(state, tf.float32)
   state = tf.squeeze(state, axis=2)
-  """
-  if cheat:
-    self_hand = tf.cast(self_hand, tf.float32)
-    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
-    net = tf.concat([net, self_hand], axis=1)
-
-  # main layers (part 1)
-  for _ in range(num_layers):
-    net = slim.fully_connected(net, layer_size, activation_fn=tf.nn.relu)
-  """
-  
-  """
-  # tom0_head, tom1_head = tf.zeros((state.get_shape().as_list()[0], *self_hand_shape)), tf.zeros((state.get_shape().as_list()[0], *self_hand_shape))
-  if mode == 'cheat':
-    # concatenate self_hand to state
-    self_hand = tf.cast(self_hand, tf.float32)
-    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
-    net = tf.concat([state, self_hand], axis=1)
-  elif mode in ['tom0', 'tom1']:
-    # compute tom0_head
-    tom_size = int(np.prod(self_hand_shape))
-    tom0_head = slim.fully_connected(state, layer_size, activation_fn=tf.nn.relu,
-                              weights_initializer=weights_initializer)
-    tom0_head = slim.fully_connected(tom0_head, tom_size, activation_fn=None,
-                                    weights_initializer=weights_initializer)
-    tom0_head = tf.reshape(tom0_head, [-1, *self_hand_shape])
-    tom0_head = tf.nn.softmax(tom0_head, axis=-1)
-    
-    # concatenate tom prediction to state
-    tom0_pred = tf.stop_gradient(tom0_head)
-    tom0_pred = tf.reshape(tom0_pred, [-1, tom_size])
-    net = tf.concat([state, tom0_pred], axis=1)
-
-    if mode == 'tom1': # compute tom1_head
-      tom1_player_offset = tf.cast(tom1_player_offset, tf.float32)
-      state_tom1 = tf.concat([state, tom1_player_offset], axis=1)
-      tom1_head = slim.fully_connected(state_tom1, layer_size, activation_fn=tf.nn.relu,
-                                weights_initializer=weights_initializer)
-      tom1_head = slim.fully_connected(tom1_head, tom_size, activation_fn=None,
-                                      weights_initializer=weights_initializer)
-      tom1_head = tf.reshape(tom1_head, [-1, *self_hand_shape])
-      tom1_head = tf.nn.softmax(tom1_head, axis=-1)
-  else: # mode='normal'
-    net = state
-  """
 
   # compute tom0_head
   tom_size = int(np.prod(self_hand_shape))
@@ -159,42 +114,6 @@ def rainbow_template(state,
 
   return net, tom0_head, tom1_head
 
-def rainbow_tom_template(state,
-                     self_hand,
-                     num_actions,
-                     self_hand_shape,
-                     cheat,
-                     num_atoms=51,
-                     layer_size=512,
-                     num_layers=1):
-  """
-  rainbow_template but with a tom_head
-  """
-  weights_initializer = slim.variance_scaling_initializer(
-      factor=1.0 / np.sqrt(3.0), mode='FAN_IN', uniform=True)
-
-  net = tf.cast(state, tf.float32)
-  net = tf.squeeze(net, axis=2)
-  if cheat:
-    self_hand = tf.cast(self_hand, tf.float32)
-    self_hand = tf.reshape(self_hand, [-1, int(np.prod(self_hand_shape))])
-    net = tf.concat([net, self_hand], axis=1)
-
-  for _ in range(num_layers):
-    net = slim.fully_connected(net, layer_size,
-                               activation_fn=tf.nn.relu)
-  q_head = slim.fully_connected(net, num_actions * num_atoms, activation_fn=None,
-                             weights_initializer=weights_initializer)
-  q_head = tf.reshape(q_head, [-1, num_actions, num_atoms])
-
-  self_hand_pred_shape = list(self_hand_shape) + [2]
-  tom_size = int(np.prod(self_hand_pred_shape))
-  tom_head = slim.fully_connected(net, tom_size, activation_fn=None,
-                             weights_initializer=weights_initializer, scope='tom_head')
-  tom_head = tf.reshape(tom_head, [-1] + self_hand_pred_shape)
-
-  return q_head, tom_head
-
 @gin.configurable
 class RainbowAgent(dqn_agent.DQNAgent):
   """A compact implementation of the multiplayer Rainbow agent."""
@@ -205,7 +124,6 @@ class RainbowAgent(dqn_agent.DQNAgent):
                observation_size=None,
                num_players=None,
                self_hand_shape=None,
-               tom_lambda=0.,
                mode='normal',
                num_atoms=51,
                vmax=25.,
@@ -251,13 +169,11 @@ class RainbowAgent(dqn_agent.DQNAgent):
     self.optimizer_epsilon = optimizer_epsilon
 
     graph_template = functools.partial(rainbow_template, num_atoms=num_atoms)
-    graph_tom_template = functools.partial(rainbow_tom_template, num_atoms=num_atoms)
     super(RainbowAgent, self).__init__(
         num_actions=num_actions,
         observation_size=observation_size,
         num_players=num_players,
         self_hand_shape=self_hand_shape,
-        tom_lambda=tom_lambda,
         mode=mode,
         gamma=gamma,
         update_horizon=update_horizon,
@@ -268,7 +184,6 @@ class RainbowAgent(dqn_agent.DQNAgent):
         epsilon_eval=epsilon_eval,
         epsilon_decay_period=epsilon_decay_period,
         graph_template=graph_template,
-        graph_tom_template=graph_tom_template,
         tf_device=tf_device)
     tf.logging.info('\t learning_rate: %f', learning_rate)
     tf.logging.info('\t optimizer_epsilon: %f', optimizer_epsilon)
