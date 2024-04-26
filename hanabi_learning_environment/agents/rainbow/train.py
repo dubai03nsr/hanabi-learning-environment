@@ -60,8 +60,8 @@ flags.DEFINE_integer('history_size', 2,
                     'Number of time steps to stack in the observation.', lower_bound=1)
 flags.DEFINE_integer('num_iterations', 1000,
                     'Number of training iterations', lower_bound=1)
-flags.DEFINE_string('mode', "normal",
-                     '"cheat", "tom0", "tom1", or "normal"')
+flags.DEFINE_string('mode', "base",
+                     '"cheat", "tom0", "tom1", or "base"')
 
 def launch_experiment():
   """Launches the experiment.

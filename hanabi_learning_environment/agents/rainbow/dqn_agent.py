@@ -94,7 +94,7 @@ class DQNAgent(object):
                observation_size=None,
                num_players=None,
                self_hand_shape=None,
-               mode='normal',
+               mode='base',
                gamma=0.99,
                update_horizon=1,
                min_replay_history=500,

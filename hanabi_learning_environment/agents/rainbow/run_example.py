@@ -41,7 +41,7 @@ flags.DEFINE_integer('history_size', 2,
 flags.DEFINE_integer('num_iterations', 1000,
                     'Number of training iterations', lower_bound=1)
 flags.DEFINE_string('mode', "tom",
-                     '"cheat", "tom" or "normal"')
+                     '"cheat", "tom" or "base"')
 flags.DEFINE_integer('num_players', 2,
                      'number of players', lower_bound=2)
 

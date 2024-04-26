@@ -1,4 +1,7 @@
-for tom_lambda in 0 1e-5 1e-4 1e-3 1e-2 1e-1 1
-do
-        python train.py --base_dir=results --tom_lambda=$tom_lambda > rainbow_results/$tom_lambda.txt 2>&1
-done
+mkdir -p rainbow_results
+python train.py --base_dir=results_base --mode=base &> rainbow_results/base.txt
+python train.py --base_dir=results_cheat --mode=cheat &> rainbow_results/cheat.txt
+python train.py --base_dir=tom0 --mode=tom0 &> rainbow_results/tom0.txt
+python train.py --base_dir=tom1 --mode=tom1 &> rainbow_results/tom1.txt
+
+python plot_returns.py

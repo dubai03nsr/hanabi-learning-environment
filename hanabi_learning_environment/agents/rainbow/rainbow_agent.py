@@ -100,7 +100,7 @@ def rainbow_template(state,
       tom1_pred = tf.stop_gradient(tom1_head)
       tom1_pred = tf.reshape(tom1_pred, [-1, tom_size])
       net = tf.concat([state, tom0_pred, tom1_pred], axis=1)
-  else:  #mode='normal'
+  else:  #mode='base'
     net = state
 
   # main layers (part 2)
@@ -124,7 +124,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
                observation_size=None,
                num_players=None,
                self_hand_shape=None,
-               mode='normal',
+               mode='base',
                num_atoms=51,
                vmax=25.,
                gamma=0.99,

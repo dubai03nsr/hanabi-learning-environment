@@ -148,7 +148,7 @@ def create_obs_stacker(environment, history_size=4):
 
 
 @gin.configurable
-def create_agent(environment, obs_stacker, agent_type='DQN', mode='normal'):
+def create_agent(environment, obs_stacker, agent_type='DQN', mode='base'):
   print('mode', mode)
   """Creates the Hanabi agent.
 
