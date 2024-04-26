@@ -48,4 +48,4 @@ More generally, most parameters are easily configured using the
 ### Final project
 
 Run `sh scripts/rainbow.sh` to train the baseline model, cheating model, ToM-0 model, and
-ToM-1 model and plot the training trajectories.
+ToM-1 model and plot the training trajectories in `rainbow_results/results.png`.
