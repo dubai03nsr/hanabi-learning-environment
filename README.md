@@ -15,3 +15,6 @@ pip install numpy                   # game_example.py uses numpy
 python examples/rl_env_example.py   # Runs RL episodes
 python examples/game_example.py     # Plays a game using the lower level interface
 ```
+
+### Final project
+Go to `hanabi_learning_environment/agents/rainbow` to run the experiments.
