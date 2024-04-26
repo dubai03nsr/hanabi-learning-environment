@@ -7,8 +7,8 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 dire = 'rainbow_results/'
-fnames = ['full-cheat.txt', 'full.txt', 'full-tom-cel.txt']
-plot_names = [r'cheat$_0$', 'base', r'ToM$_0$']
+fnames = ['cheat.txt', 'base.txt', 'tom0.txt', 'tom1.txt']
+plot_names = [r'cheat$_0$', 'base', r'ToM$_0$', r'ToM$_1$']
 
 for fname_i, fname in enumerate(fnames):
     with open(dire + fname) as f:
