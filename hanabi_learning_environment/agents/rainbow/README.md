@@ -44,3 +44,8 @@ iteration.
 
 More generally, most parameters are easily configured using the
 [gin configuration framework](https://github.com/google/gin-config).
+
+### Final project
+
+Run `sh scripts/rainbow.sh` to train the baseline model, cheating model, ToM-0 model, and
+ToM-1 model and plot the training trajectories.
